@@ -1,0 +1,138 @@
+env:
+  - GO111MODULE=auto
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+    - ./scripts/completions.sh
+    - ./scripts/manpages.sh
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - "386"
+      - amd64
+      - arm
+      - arm64
+    goarm:
+      - "7"
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
+universal_binaries:
+  - replace: false
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^Merge pull request"
+      - "^Merge branch"
+
+archives:
+  - name_template: >-
+      {{ .ProjectName }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - completions/*
+      - manpages/*
+
+brews:
+  - tap:
+      owner: sanix-darker
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    goarm: "7"
+    homepage: https://github.com/sanix-darker/prev
+    description: A Golang cli template.
+    license: Apache 2.0
+    test: |
+      system "#{bin}/prev version"
+    dependencies:
+      - name: go
+        type: optional
+    install: |-
+      bin.install "prev"
+      bash_completion.install "completions/prev.bash" => "prev"
+      zsh_completion.install "completions/prev.zsh" => "_prev"
+      fish_completion.install "completions/prev.fish"
+      man1.install "manpages/prev.1.gz"
+
+nfpms:
+  - file_name_template: "{{ .ConventionalFileName }}"
+    id: packages
+    homepage: https://github.com/sanix-darker/prev
+    description: A Golang cli template.
+    maintainer: sanix-darker <s4nixd@gmail.com>
+    license: Apache 2.0
+    vendor: sanix-darker
+    bindir: /usr/bin
+    section: utils
+    contents:
+      - src: ./completions/prev.bash
+        dst: /usr/share/bash-completion/completions/prev
+        file_info:
+          mode: 0644
+      - src: ./completions/prev.fish
+        dst: /usr/share/fish/vendor_completions.d/prev.fish
+        file_info:
+          mode: 0644
+      - src: ./completions/prev.zsh
+        dst: /usr/share/zsh/vendor-completions/_prev
+        file_info:
+          mode: 0644
+      - src: ./manpages/prev.1.gz
+        dst: /usr/share/man/man1/prev.1.gz
+        file_info:
+          mode: 0644
+      - src: ./LICENSE
+        dst: /usr/share/doc/prev/copyright
+        file_info:
+          mode: 0644
+    formats:
+      - apk
+      - deb
+      - rpm
+      - archlinux
+    recommends:
+      - golang
+    deb:
+      lintian_overrides:
+        - statically-linked-binary
+        - changelog-file-missing-in-native-package
+
+publishers:
+  - name: fury.io
+    ids:
+      - packages
+    env:
+      - "FURY_TOKEN={{ .Env.FURY_TOKEN }}"
+    cmd: ./scripts/fury-upload.sh {{ .ArtifactName }}
+
+release:
+  footer: |
+    **Full Changelog**: https://github.com/sanix-darker/prev/compare/{{ .PreviousTag }}...{{ .Tag }}

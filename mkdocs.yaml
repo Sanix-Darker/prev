@@ -1,0 +1,60 @@
+site_name: prev
+site_url: https://sanix-darker.github.io/prev/
+
+# Repository
+repo_name: sanix-darker/prev
+repo_url: https://github.com/sanix-darker/prev
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+theme:
+  name: material
+  features:
+    - navigation.indexes
+    - navigation.sections
+    - navigation.instant
+    - navigation.tabs
+    - navigation.tabs.sticky
+  favicon: assets/images/favicon.ico
+  icon:
+    logo: logo
+  logo: assets/images/logo.png
+  palette:
+    - scheme: default
+      primary: 333333
+      accent: 333333
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: "#333333"
+      accent: "#333333"
+      toggle:
+        icon: material/brightness-3
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Golang CLI template:
+      - Features: prev/features.md
+      - Getting started: prev/getting-started.md
+      - Customization:
+          - Release: prev/customization/release.md
+          - Documentation: prev/customization/doc.md
+
+  - User guide:
+      - Installation: user-guide/getting-started.md
+      - Commands:
+          - Version: user-guide/commands/version.md
+
+  - Developer guide:
+      - Code of conduct: dev-guide/code_of_conduct.md
+      - Contributing: dev-guide/contributing.md
