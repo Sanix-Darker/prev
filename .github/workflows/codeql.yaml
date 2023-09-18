@@ -12,18 +12,25 @@ on:
 jobs:
   codeql:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      repository-projects: write
+      security-events: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v2.21.7
         with:
+          debug: true
           languages: go
+          setup-python-dependencies: true
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        uses: github/codeql-action/autobuild@v2.21.7
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v2.21.7
