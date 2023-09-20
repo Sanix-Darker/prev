@@ -1,8 +1,8 @@
 package core
 
 import (
-	"io/ioutil"
-	"strings"
+	"bufio"
+	"os"
 )
 
 // BuildPrompt build the prompt to ask the AI
@@ -54,9 +54,20 @@ func BuildDiff(filepath1 string, filepath2 string) ([]string, error) {
 }
 
 func readLines(filepath string) ([]string, error) {
-	content, err := ioutil.ReadFile(filepath)
+	file, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
-	return strings.Split(string(content), ""), nil
+	defer file.Close()
+
+	lines := []string{}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return lines, nil
 }
