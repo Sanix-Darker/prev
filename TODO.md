@@ -14,6 +14,8 @@
 
 - [ ] the power of prev should be all the potentials client for that (not just OPEN AI)
 
+- [  ] for branch diff, allow these formats branch1:branch2 or if it's only branch provided, check with the master (or the main branch available ? maybe the golang git API have that ? Need to check...)
+
 - [ ] Make it a product paid $1/MONTH and 10$/YEAR
 - [ ] write a gihub action that use the CLI to evaluate a Pull request
 
