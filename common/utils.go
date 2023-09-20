@@ -12,10 +12,22 @@ import (
 	"github.com/spf13/pflag"
 )
 
-type Func_help_callback func() error
+type FuncHelpCallback func() error
+
+// just return the repo and the target path from
+func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help FuncHelpCallback) (string, string) {
+	repoPath, _ := cmdFlags.GetString("repo")
+	gitPath := ExtractPaths(GetArgByKey("path", cmdFlags, false))
+
+	if len(gitPath) == 0 {
+		gitPath = []string{""}
+	}
+
+	return repoPath, gitPath[0]
+}
 
 // CheckArgs: check arguments are correctly passed then help callback if not
-func CheckArgs(keycommand string, args []string, help Func_help_callback) {
+func CheckArgs(keycommand string, args []string, help FuncHelpCallback) {
 	if len(args) == 0 {
 		_ = help()
 		os.Exit(0)

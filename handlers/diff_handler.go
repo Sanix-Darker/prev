@@ -12,7 +12,7 @@ import (
 // ExtractDiffHandler: this handler just extract the diff changes from a file1,file2 argument
 func ExtractDiffHandler(
 	inputString string,
-	helper common.Func_help_callback,
+	helper common.FuncHelpCallback,
 	debug bool,
 ) ([]string, error) {
 

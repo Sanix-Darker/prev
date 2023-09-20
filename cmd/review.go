@@ -55,14 +55,10 @@ var commitCmd = &cobra.Command{
 	Example: "prev commit 44rtff55g --repo /path/to/git/project\nprev commit 867abbeef --repo /path/to/git/project -p app/main.py,tests/",
 	Run: func(cmd *cobra.Command, args []string) {
 		common.CheckArgs("commit", args, cmd.Help)
-		commitHash := args[0]
-
 		cmdFlags := cmd.Flags()
-		repoPath := common.GetArgByKey("repo", cmdFlags, true)
-		// list of multiple files
-		// we need to identifiy a file from a directory
-		// and also an be n array of paths
-		gitPath := common.GetArgByKey("path", cmdFlags, false)
+
+		commitHash := args[0]
+		repoPath, gitPath := common.GetRepoPathAndTargetPath(cmdFlags, cmd.Help)
 
 		fmt.Println(repoPath)
 		fmt.Println(gitPath)
@@ -78,11 +74,13 @@ var branchCmd = &cobra.Command{
 	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		common.CheckArgs("branch", args, cmd.Help)
+		cmdFlags := cmd.Flags()
 		branchName := args[0]
 
-		repoPath, _ := cmd.Flags().GetString("repo")
+		repoPath, gitPath := common.GetRepoPathAndTargetPath(cmdFlags, cmd.Help)
 
 		fmt.Println(repoPath)
+		fmt.Println(gitPath)
 		fmt.Println(branchName)
 	},
 }
