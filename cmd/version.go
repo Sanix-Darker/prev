@@ -13,7 +13,7 @@ import (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the application version.",
-	Long:  `Print the application version such as built informations + platform informatinos.`,
+	Long:  `Print the application version with built/platform informations.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		version.Print()
 	},

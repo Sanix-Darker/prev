@@ -30,10 +30,10 @@ var ReviewFlags = []models.FlagStruct{
 // diffCmd represents the diffCmd for the command
 var diffCmd = &cobra.Command{
 	Use:     "diff <file1,file2>...",
-	Short:   "Get/check/review diff between two files changes (not git related).",
-	Example: "prev review diff code_ok.py,code_bad.py",
+	Short:   "review diff between two files changes (not git related).",
+	Example: "prev diff code_ok.py,code_bad.py",
 	Run: func(cmd *cobra.Command, args []string) {
-		CheckArgs("review diff", args, cmd.Help)
+		CheckArgs("diff", args, cmd.Help)
 
 		file1, file2 := strings.Split(args[0], ",")[0], strings.Split(args[0], ",")[1]
 
@@ -49,10 +49,10 @@ var diffCmd = &cobra.Command{
 // commitCmd represents the commit for the command
 var commitCmd = &cobra.Command{
 	Use:     "commit <commitHash> [--repo] [-p --path]...",
-	Short:   "Select a commit from your .git repository(local or remote)",
-	Example: "prev review commit 44rtff55g --repo /path/to/git/project\nprev review commit 867abbeef --repo /path/to/git/project -p app/main.py,tests/",
+	Short:   "Select a commit from a .git repo(local or remote)",
+	Example: "prev commit 44rtff55g --repo /path/to/git/project\nprev commit 867abbeef --repo /path/to/git/project -p app/main.py,tests/",
 	Run: func(cmd *cobra.Command, args []string) {
-		CheckArgs("review commit", args, cmd.Help)
+		CheckArgs("commit", args, cmd.Help)
 		commitHash := args[0]
 
 		cmdFlags := cmd.Flags()
@@ -71,11 +71,11 @@ var commitCmd = &cobra.Command{
 // branchCmd represents the branch for the command
 var branchCmd = &cobra.Command{
 	Use:     "branch <branchName> [--repo] [-p --path]...",
-	Short:   "Select a branch from your .git repository(local or remote)",
-	Example: "prev review branch f/hot-fix --repo /path/to/git/project\nprev review branch f/hight-feat --repo /path/to/git/project -p Cargo.toml,lib/eraser.rs",
+	Short:   "Select a branch from your .git repo(local or remote)",
+	Example: "prev branch f/hot-fix --repo /path/to/git/project\nprev branch f/hight-feat --repo /path/to/git/project -p Cargo.toml,lib/eraser.rs",
 	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		CheckArgs("review branch", args, cmd.Help)
+		CheckArgs("branch", args, cmd.Help)
 		branchName := args[0]
 
 		repoPath, _ := cmd.Flags().GetString("repo")
@@ -85,21 +85,11 @@ var branchCmd = &cobra.Command{
 	},
 }
 
-// reviewCmd represents the review command
-var reviewCmd = &cobra.Command{
-	Use:       "review [branch | commit | diff] [-rp --repo]...",
-	Short:     "Review changes on a .git repository(local or remote)",
-	Example:   "prev review branch f/hot-fix -r /path/to/git/project\nprev review commit 867abbeef -r /path/to/git/project -p Makefile\nprev review diff previous.txt,next.txt",
-	ValidArgs: []string{"branch", "commit", "diff"},
-	Run:       func(cmd *cobra.Command, args []string) {},
-}
-
 func init() {
-	reviewCmd.AddCommand(branchCmd, commitCmd, diffCmd)
-	rootCmd.AddCommand(reviewCmd)
+	rootCmd.AddCommand(branchCmd, commitCmd, diffCmd)
 
 	// set flags smartly
-	for _, cmd := range reviewCmd.Commands() {
+	for _, cmd := range rootCmd.Commands() {
 		if cmd != diffCmd { // those are not needed for diffCmd
 			for _, fg := range ReviewFlags {
 				cmd.PersistentFlags().StringP(

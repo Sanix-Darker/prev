@@ -18,6 +18,7 @@ type Func_help_callback func() error
 func CheckArgs(keycommand string, args []string, help Func_help_callback) {
 	if len(args) == 0 {
 		_ = help()
+		os.Exit(0)
 	}
 }
 
@@ -31,6 +32,8 @@ func GetArgByKey(key string, cmdFlags *pflag.FlagSet, strictMode bool) string {
 	return value
 }
 
+// ExtractPaths for a give path (like a glob),we want a full path from it
+// either it's a dir, or a file with any kind of extension
 func ExtractPaths(path string) []string {
 	var files []string
 
@@ -71,7 +74,6 @@ func ExtractPaths(path string) []string {
 					fmt.Printf("Error: %v\n", err)
 				}
 			} else {
-				// if it's a file
 				files = append(files, p)
 			}
 		}
