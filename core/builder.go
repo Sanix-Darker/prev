@@ -2,12 +2,30 @@ package core
 
 import (
 	"bufio"
+	"fmt"
 	"os"
+	"strings"
 )
 
 // BuildPrompt build the prompt to ask the AI
-func BuildPrompt(changes string) string {
-	return ""
+func BuildPrompt(changes string, maxCharPerPoints int, maxKeyPoints int) string {
+
+	changesBuilt := []string{""}
+
+	return fmt.Sprintf(`You're on a code review, review this list of changes :
+
+%s
+
+Please respect those rules :
+- respond only with keypoint, no more than %d characters per points.
+- if new changes are optimal, don't comment.
+- if regressions detected, give comment or/and code about better approach.
+- don't explain or rexplain any  source code
+- print the code only if you have a better solution.
+- no more than %d keypoints.
+- priotize simplicity over complexity.
+- try to respect DRY, SOLID principles while reviewing.
+`, strings.Join(changesBuilt, "-----------------------"), maxCharPerPoints, maxKeyPoints)
 }
 
 // BuildDiff builds +/- changes between two files and returns an array of string differences.

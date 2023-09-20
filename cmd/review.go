@@ -5,9 +5,10 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/sanix-darker/prev/models"
+	common "github.com/sanix-darker/prev/common"
+	handlers "github.com/sanix-darker/prev/handlers"
+	models "github.com/sanix-darker/prev/models"
 	"github.com/spf13/cobra"
 )
 
@@ -33,16 +34,15 @@ var diffCmd = &cobra.Command{
 	Short:   "review diff between two files changes (not git related).",
 	Example: "prev diff code_ok.py,code_bad.py",
 	Run: func(cmd *cobra.Command, args []string) {
-		CheckArgs("diff", args, cmd.Help)
+		common.CheckArgs("diff", args, cmd.Help)
 
-		file1, file2 := strings.Split(args[0], ",")[0], strings.Split(args[0], ",")[1]
+		d, _ := handlers.ExtractDiffHandler(
+			args[0],
+			cmd.Help,
+			true,
+		)
+		print(d)
 
-		// get difference between two files and save it into an array of difference
-		// that are going to be concatenate to a prompt for the core
-
-		// fmt.Println(repoPath)
-		fmt.Println(file1)
-		fmt.Println(file2)
 	},
 }
 
@@ -52,15 +52,15 @@ var commitCmd = &cobra.Command{
 	Short:   "Select a commit from a .git repo(local or remote)",
 	Example: "prev commit 44rtff55g --repo /path/to/git/project\nprev commit 867abbeef --repo /path/to/git/project -p app/main.py,tests/",
 	Run: func(cmd *cobra.Command, args []string) {
-		CheckArgs("commit", args, cmd.Help)
+		common.CheckArgs("commit", args, cmd.Help)
 		commitHash := args[0]
 
 		cmdFlags := cmd.Flags()
-		repoPath := GetArgByKey("repo", cmdFlags, true)
+		repoPath := common.GetArgByKey("repo", cmdFlags, true)
 		// list of multiple files
 		// we need to identifiy a file from a directory
 		// and also an be n array of paths
-		gitPath := GetArgByKey("path", cmdFlags, false)
+		gitPath := common.GetArgByKey("path", cmdFlags, false)
 
 		fmt.Println(repoPath)
 		fmt.Println(gitPath)
@@ -75,7 +75,7 @@ var branchCmd = &cobra.Command{
 	Example: "prev branch f/hot-fix --repo /path/to/git/project\nprev branch f/hight-feat --repo /path/to/git/project -p Cargo.toml,lib/eraser.rs",
 	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		CheckArgs("branch", args, cmd.Help)
+		common.CheckArgs("branch", args, cmd.Help)
 		branchName := args[0]
 
 		repoPath, _ := cmd.Flags().GetString("repo")
