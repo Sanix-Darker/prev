@@ -5,8 +5,10 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	common "github.com/sanix-darker/prev/common"
+	"github.com/sanix-darker/prev/core"
 	handlers "github.com/sanix-darker/prev/handlers"
 	models "github.com/sanix-darker/prev/models"
 	"github.com/spf13/cobra"
@@ -39,10 +41,10 @@ var diffCmd = &cobra.Command{
 		d, _ := handlers.ExtractDiffHandler(
 			args[0],
 			cmd.Help,
-			true,
+			false,
 		)
-		print(d)
-
+		prompt := core.BuildPrompt(strings.Join(d, "\n"), 500, 5)
+		fmt.Println(prompt)
 	},
 }
 

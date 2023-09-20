@@ -35,7 +35,12 @@ func ExtractDiffHandler(
 		return nil, errors.New("[x] Insufficient input parts")
 	}
 
-	diffList, _ := core.BuildDiff(file1[0], file2[0], debug)
+	diffList, _ := core.BuildDiff(file1[0], file2[0])
+	if debug {
+		for _, d := range diffList {
+			fmt.Println(d)
+		}
+	}
 
 	fmt.Println(file1[0])
 	fmt.Println(file2[0])

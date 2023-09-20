@@ -4,13 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strings"
 )
 
 // BuildPrompt build the prompt to ask the AI
 func BuildPrompt(changes string, maxCharPerPoints int, maxKeyPoints int) string {
-
-	changesBuilt := []string{""}
 
 	return fmt.Sprintf(`You're on a code review, review this list of changes :
 
@@ -25,11 +22,11 @@ Please respect those rules :
 - no more than %d keypoints.
 - priotize simplicity over complexity.
 - try to respect DRY, SOLID principles while reviewing.
-`, strings.Join(changesBuilt, "-----------------------"), maxCharPerPoints, maxKeyPoints)
+`, changes, maxCharPerPoints, maxKeyPoints)
 }
 
 // BuildDiff builds +/- changes between two files and returns an array of string differences.
-func BuildDiff(filepath1 string, filepath2 string) ([]string, error) {
+func BuildDiff(filepath1, filepath2 string) ([]string, error) {
 	file1Lines, err := readLines(filepath1)
 	if err != nil {
 		return nil, err
@@ -40,32 +37,26 @@ func BuildDiff(filepath1 string, filepath2 string) ([]string, error) {
 		return nil, err
 	}
 
-	diffLines := make([]string, 0)
+	var diffLines []string
+	i, j := 0, 0
 
-	// Compare lines
-	i := 0
-	j := 0
-	for i < len(file1Lines) && j < len(file2Lines) {
-		if file1Lines[i] == file2Lines[j] {
+	for i < len(file1Lines) || j < len(file2Lines) {
+		switch {
+		case i < len(file1Lines) && j < len(file2Lines) && file1Lines[i] == file2Lines[j]:
 			diffLines = append(diffLines, " "+file1Lines[i])
 			i++
 			j++
-		} else {
-			diffLines = append(diffLines, "-"+file1Lines[i])
+		case i < len(file1Lines):
+			if i == 0 || file1Lines[i] != file1Lines[i-1] {
+				diffLines = append(diffLines, "-"+file1Lines[i])
+			}
 			i++
+		case j < len(file2Lines):
+			if j == 0 || file2Lines[j] != file2Lines[j-1] {
+				diffLines = append(diffLines, "+"+file2Lines[j])
+			}
+			j++
 		}
-	}
-
-	// Add remaining lines from file1
-	for i < len(file1Lines) {
-		diffLines = append(diffLines, "-"+file1Lines[i])
-		i++
-	}
-
-	// Add remaining lines from file2
-	for j < len(file2Lines) {
-		diffLines = append(diffLines, "+"+file2Lines[j])
-		j++
 	}
 
 	return diffLines, nil
