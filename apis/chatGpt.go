@@ -3,52 +3,116 @@ package apis
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/sanix-darker/prev/common"
 )
 
-// RequestBuilder
-func RequestBuilder() {
+// req
+type MessageReq struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
 
+type RequestReq struct {
+	Model     string       `json:"model"`
+	Messages  []MessageReq `json:"messages"`
+	MaxTokens int          `json:"max_tokens"`
+}
+
+// resp
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type Choice struct {
+	Index        int     `json:"index"`
+	Message      Message `json:"message"`
+	FinishReason string  `json:"finish_reason"`
+}
+
+type Usage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
+type JSONResponse struct {
+	ID      string   `json:"id"`
+	Object  string   `json:"object"`
+	Created int64    `json:"created"`
+	Model   string   `json:"model"`
+	Choices []Choice `json:"choices"`
+	Usage   Usage    `json:"usage"`
+}
+
+// Some globals
+const (
+	API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+	MAX_TOKENS   = 500
+	GPT_MODEL    = "gpt-3.5-turbo"
+)
+
+var (
+	RESTY_CLIENT = resty.New()
+	API_KEY      = "" // need to fix this letter os.Getenv("OPEN_AI")
+)
+
+// ReqBuilder the request builder with all necessary stuffs
+func ReqBuilder() *resty.Request {
+	return RESTY_CLIENT.R().SetAuthToken(
+		API_KEY,
+	).SetHeader(
+		"Content-Type",
+		"application/json",
+	)
 }
 
 // Handler
-func ChatGptHandler() {
-
-	const (
-		apiEndpoint = "https://api.openai.com/v1/chat/completions"
-	)
-
-	// Use your API KEY here
-	apiKey := "YOUR API KEY HERE"
-	client := resty.New()
-
-	response, err := client.R().
-		SetAuthToken(apiKey).
-		SetHeader("Content-Type", "application/json").
-		SetBody(map[string]interface{}{
-			"model":      "gpt-3.5-turbo",
-			"messages":   []interface{}{map[string]interface{}{"role": "system", "content": "Hi can you tell me what is the factorial of 10?"}},
-			"max_tokens": 50,
-		}).
-		Post(apiEndpoint)
+func ChatGptHandler(systemPrompt string, questionPrompt string) (string, []string, error) {
+	response, err := ReqBuilder().SetBody(RequestReq{
+		Model: GPT_MODEL,
+		Messages: []MessageReq{
+			{
+				Role:    "system",
+				Content: systemPrompt,
+			},
+			{
+				Role:    "user",
+				Content: questionPrompt,
+			},
+		},
+		MaxTokens: MAX_TOKENS,
+	}).Post(API_ENDPOINT)
 
 	if err != nil {
-		log.Fatalf("Error while sending send the request: %v", err)
+		common.LogError(
+			fmt.Sprintf("Error while sending send the request: %v", err),
+			true,
+			false,
+			nil,
+		)
 	}
 
-	body := response.Body()
-
-	var data map[string]interface{}
-	err = json.Unmarshal(body, &data)
-	if err != nil {
-		fmt.Println("Error while decoding JSON response:", err)
-		return
+	jsonData := response.Body()
+	var jsonResponse JSONResponse
+	if err := json.Unmarshal([]byte(jsonData), &jsonResponse); err != nil {
+		common.LogError(
+			err.Error(),
+			true,
+			false,
+			nil,
+		)
+		return "", nil, err
 	}
 
-	// Extract the content from the JSON response
-	content := data["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
-	fmt.Println(content)
+	// TODO: should save responses in a .cache and return only the content
+	responseId := jsonResponse.ID
+	responseChoices := []string{}
+	for _, choice := range jsonResponse.Choices {
+		responseChoices = append(responseChoices, choice.Message.Content)
+	}
 
+	return responseId, responseChoices, nil
 }

@@ -14,75 +14,94 @@ func BuildPrompt(
 ) string {
 	// this function just build the output string that will be passed to
 	// the selected API for the initial question to be asked.
-	return fmt.Sprintf(`You're on a code review, review this list of changes :
+	return fmt.Sprintf(`
+You're on a code review,
+this is a diff representations with + for code added and - for code deleted,
+review this list of changes please :
 
 %s
 
 Please respect those rules :
-- Respond only with keypoints, no more than %d characters per points.
-- If new changes are optimal, don't comment or describe it.
-- If regressions detected, or less optimal give comment and code for better approach.
-- Don't explain or rexplain source code provided.
-- Print the code only if you have a better solution.
+- Respond in a Markdown format styling.
+- Respond only with important keypoints, no more than %d characters each per points.
+- If less optimal give comment and code for better approach.
 - No more than %d keypoints.
+- Don't mention the keypoint title or enumeration, just the content matter.
 - Priotize simplicity over complexity.
 - Try to respect DRY, SOLID principles while reviewing.
+- Provide only keypoints for code change that should be updated.
+- Provide the optimized, clean and simple code you suggest me at the end, with a small title "suggestion:" for each set of changes blocks.
 `, changes, maxCharPerPoints, maxKeyPoints)
 }
 
-// BuildDiff builds +/- changes between two files and returns an array of
-// string differences.
-func BuildDiff(filepath1, filepath2 string) ([]string, error) {
-	file1Lines, err := readLines(filepath1)
-	if err != nil {
-		return nil, err
-	}
-
-	file2Lines, err := readLines(filepath2)
-	if err != nil {
-		return nil, err
-	}
-
-	var diffLines []string
-	i, j := 0, 0
-
-	for i < len(file1Lines) || j < len(file2Lines) {
-		switch {
-		case i < len(file1Lines) && j < len(file2Lines) && file1Lines[i] == file2Lines[j]:
-			diffLines = append(diffLines, " "+file1Lines[i])
-			i++
-			j++
-		case i < len(file1Lines):
-			if i == 0 || file1Lines[i] != file1Lines[i-1] {
-				diffLines = append(diffLines, "-"+file1Lines[i])
-			}
-			i++
-		case j < len(file2Lines):
-			if j == 0 || file2Lines[j] != file2Lines[j-1] {
-				diffLines = append(diffLines, "+"+file2Lines[j])
-			}
-			j++
-		}
-	}
-
-	return diffLines, nil
-}
-
-func readLines(filepath string) ([]string, error) {
-	file, err := os.Open(filepath)
+func readFileLines(filename string) ([]string, error) {
+	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	lines := []string{}
+	var lines []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
+
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
 
 	return lines, nil
+}
+
+func BuildDiff(file1, file2 string) ([]string, error) {
+
+	lines1, err := readFileLines(file1)
+	if err != nil {
+		fmt.Println("Error reading", file1, ":", err)
+		return nil, err
+	}
+
+	lines2, err := readFileLines(file2)
+	if err != nil {
+		fmt.Println("Error reading", file2, ":", err)
+		return nil, err
+	}
+
+	var differences []string
+	var similarLineCount int
+
+	i, j := 0, 0
+	for i < len(lines1) && j < len(lines2) {
+		if lines1[i] == lines2[j] {
+			similarLineCount++
+			if similarLineCount == 3 {
+				differences = append(differences, "---")
+			}
+			i++
+			j++
+		} else {
+			similarLineCount = 0
+			differences = append(differences, generateDiffLine(lines1[i], lines2[j]))
+			i++
+			j++
+		}
+	}
+
+	// Handle remaining lines in case one file has more lines than the other.
+	for i < len(lines1) {
+		differences = append(differences, generateDiffLine(lines1[i], ""))
+		i++
+	}
+
+	for j < len(lines2) {
+		differences = append(differences, generateDiffLine("", lines2[j]))
+		j++
+	}
+
+	return differences, nil
+}
+
+func generateDiffLine(line1, line2 string) string {
+	return fmt.Sprintf("+ %s\n- %s", line2, line1)
 }

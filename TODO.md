@@ -15,6 +15,8 @@
     - `show` to see what is used
     - `set-key` you can set an API key only if you have already set what to use as the API AI.
 
+- [  ] Pipe the output of the review inside the glow CLI
+
 - [ ] set the context-code from any input if any provided (like the clipboard), this should be set and available inside the config of prev.
 - [ ] complete the prompt builder
 - [ ] add an util that evaluate the difference from two given files
@@ -41,12 +43,15 @@
     - [ ] PREVV.ai Self Hosted  (yes, prev will have one(barely as fast as the others but should be able to respond some interesting stuffs)) + those configurations needed PRE_API_KEY to be set and stored
 
 - [ ] the power of prev should be all the potentials client for that (not just OPEN AI)
-
 - add "typo" correction to the prompt review
 - possibility to add prev as a pre-commit tool too
 - find a way to track downloads of prev
 
 - [x] fix all .gh-actions error havings (am ignoring this for now)
+
+- add "typo" correction to the prompt review
+- possibility to add prev as a pre-commit tool too
+- find a way to track downloads of prev
 
 - [ ] for branch diff, allow these formats branch1:branch2 or if it's only branch provided, check with the master (or the main branch available ? maybe the golang git API have that ? Need to check...)
 

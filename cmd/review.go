@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sanix-darker/prev/apis"
 	common "github.com/sanix-darker/prev/common"
 	"github.com/sanix-darker/prev/core"
 	handlers "github.com/sanix-darker/prev/handlers"
@@ -52,14 +53,23 @@ var diffCmd = &cobra.Command{
 			common.LogError(err.Error(), true, false, nil)
 		}
 
-		common.LogInfo(
-			core.BuildPrompt(
-				strings.Join(d, "\n"),
-				500,
-				5,
-			),
-			nil,
+		prompt := core.BuildPrompt(
+			strings.Join(d, "\n"),
+			500,
+			3,
 		)
+
+		chatId, responses, err := apis.ChatGptHandler("You're a software engineer", prompt)
+		if err != nil {
+			common.LogError(err.Error(), true, false, nil)
+		}
+		common.LogInfo("> chatId: "+chatId, nil)
+		common.LogInfo("> responses: "+string(len(responses)), nil)
+		for _, resp := range responses {
+			common.LogInfo("> review: ", nil)
+			fmt.Println(resp)
+			// fmt.Print(renders.RenderMarkdown(resp))
+		}
 	},
 }
 
