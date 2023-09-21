@@ -7,25 +7,31 @@ import (
 )
 
 // BuildPrompt build the prompt to ask the AI
-func BuildPrompt(changes string, maxCharPerPoints int, maxKeyPoints int) string {
-
+func BuildPrompt(
+	changes string,
+	maxCharPerPoints int,
+	maxKeyPoints int,
+) string {
+	// this function just build the output string that will be passed to
+	// the selected API for the initial question to be asked.
 	return fmt.Sprintf(`You're on a code review, review this list of changes :
 
 %s
 
 Please respect those rules :
-- respond only with keypoint, no more than %d characters per points.
-- if new changes are optimal, don't comment.
-- if regressions detected, give comment or/and code about better approach.
-- don't explain or rexplain any  source code
-- print the code only if you have a better solution.
-- no more than %d keypoints.
-- priotize simplicity over complexity.
-- try to respect DRY, SOLID principles while reviewing.
+- Respond only with keypoints, no more than %d characters per points.
+- If new changes are optimal, don't comment or describe it.
+- If regressions detected, or less optimal give comment and code for better approach.
+- Don't explain or rexplain source code provided.
+- Print the code only if you have a better solution.
+- No more than %d keypoints.
+- Priotize simplicity over complexity.
+- Try to respect DRY, SOLID principles while reviewing.
 `, changes, maxCharPerPoints, maxKeyPoints)
 }
 
-// BuildDiff builds +/- changes between two files and returns an array of string differences.
+// BuildDiff builds +/- changes between two files and returns an array of
+// string differences.
 func BuildDiff(filepath1, filepath2 string) ([]string, error) {
 	file1Lines, err := readLines(filepath1)
 	if err != nil {

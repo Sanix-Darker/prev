@@ -1,5 +1,11 @@
 /*
 Copyright © 2023 sanix-darker <s4nixd@gmail.com>
+
+The main review module that handle:
+- diff :given to files or a set of changes, will review it  for your depending on the chosed API.
+- git-based-eval: given a branch name and a repository.
+  - branch : it will review the changes difference from the base branch.
+  - commit : it will review the changes difference from the base branch.
 */
 package cmd
 
