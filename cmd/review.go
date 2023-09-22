@@ -44,11 +44,14 @@ var diffCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		common.CheckArgs("diff", args, cmd.Help)
 
-		d, _ := handlers.ExtractDiffHandler(
+		d, err := handlers.ExtractDiffHandler(
 			args[0],
 			cmd.Help,
 			false,
 		)
+		if err != nil {
+			// common.PrintError
+		}
 		prompt := core.BuildPrompt(strings.Join(d, "\n"), 500, 5)
 		fmt.Println(prompt)
 	},
@@ -61,14 +64,23 @@ var commitCmd = &cobra.Command{
 	Example: "prev commit 44rtff55g --repo /path/to/git/project\nprev commit 867abbeef --repo /path/to/git/project -p app/main.py,tests/",
 	Run: func(cmd *cobra.Command, args []string) {
 		common.CheckArgs("commit", args, cmd.Help)
-		cmdFlags := cmd.Flags()
 
-		commitHash := args[0]
-		repoPath, gitPath := common.GetRepoPathAndTargetPath(cmdFlags, cmd.Help)
+		commitHash, repoPath, gitPath := common.ExtractTargetRepoAndGitPath(args,
+			cmd.Flags(),
+			cmd.Help,
+		)
+		d, err := handlers.ExtractCommitHandler(
+			commitHash,
+			repoPath,
+			gitPath,
+			cmd.Help,
+		)
 
-		fmt.Println(repoPath)
-		fmt.Println(gitPath)
-		fmt.Println(commitHash)
+		if err != nil {
+			// common.PrintError
+		}
+		prompt := core.BuildPrompt(strings.Join(d, "\n"), 500, 5)
+		fmt.Println(prompt)
 	},
 }
 
@@ -80,14 +92,26 @@ var branchCmd = &cobra.Command{
 	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		common.CheckArgs("branch", args, cmd.Help)
-		cmdFlags := cmd.Flags()
-		branchName := args[0]
 
-		repoPath, gitPath := common.GetRepoPathAndTargetPath(cmdFlags, cmd.Help)
-
-		fmt.Println(repoPath)
-		fmt.Println(gitPath)
-		fmt.Println(branchName)
+		branchName, repoPath, gitPath := common.ExtractTargetRepoAndGitPath(args,
+			cmd.Flags(),
+			cmd.Help,
+		)
+		d, err := handlers.ExtractHashHandler(
+			branchName,
+			repoPath,
+			gitPath,
+			cmd.Help,
+		)
+		if err != nil {
+			// common.PrintError
+		}
+		prompt := core.BuildPrompt(
+			strings.Join(d, "\n-----------------------------------------\n"),
+			500,
+			5,
+		)
+		fmt.Println(prompt)
 	},
 }
 

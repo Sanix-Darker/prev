@@ -32,6 +32,18 @@ func PrintError(
 	}
 }
 
+// ExtractTargetRepoAndGitPath; extract target (commmitHash/branchName)
+// , the .git path and the repo path
+func ExtractTargetRepoAndGitPath(
+	args []string,
+	cmdFlags *pflag.FlagSet,
+	help HelpCallback,
+) (string, string, string) {
+	targetHash := args[0]
+	repoPath, gitPath := GetRepoPathAndTargetPath(cmdFlags, help)
+	return targetHash, repoPath, gitPath
+}
+
 // just return the repo and the target path from
 func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help HelpCallback) (string, string) {
 	repoPath, _ := cmdFlags.GetString("repo")
