@@ -38,7 +38,6 @@
     - [ ] Quora Poe AI (https://poe.com/chatgpt)
     - [ ] PREVV.ai Self Hosted  (yes, prev will have one(barely as fast as the others but should be able to respond some interesting stuffs)) + those configurations needed PRE_API_KEY to be set and stored
 
-- [ ] fix all .gh-actions error havings
 - [ ] the power of prev should be all the potentials client for that (not just OPEN AI)
 
 - add "typo" correction to the prompt review
@@ -46,6 +45,7 @@
 - find a way to track downloads of prev
 
 - [x] fix all .gh-actions error havings (am ignoring this for now)
+
 - [ ] for branch diff, allow these formats branch1:branch2 or if it's only branch provided, check with the master (or the main branch available ? maybe the golang git API have that ? Need to check...)
 
 - [ ] Make it a product paid $1/MONTH and 10$/YEAR

@@ -12,12 +12,30 @@ import (
 	"github.com/spf13/pflag"
 )
 
-type FuncHelpCallback func() error
+type HelpCallback func() error
+
+// PrintError: to print an error message
+// in case of "critic" at true, the program will stop on code 0
+func PrintError(
+	message string,
+	critic bool,
+	help_menu bool,
+	help_callback HelpCallback,
+) {
+	fmt.Printf(message + "\n")
+
+	if critic {
+		if help_menu {
+			help_callback()
+		}
+		os.Exit(0)
+	}
+}
 
 // just return the repo and the target path from
-func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help FuncHelpCallback) (string, string) {
+func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help HelpCallback) (string, string) {
 	repoPath, _ := cmdFlags.GetString("repo")
-	gitPath := ExtractPaths(GetArgByKey("path", cmdFlags, false))
+	gitPath := ExtractPaths(GetArgByKey("path", cmdFlags, false, help), help)
 
 	if len(gitPath) == 0 {
 		gitPath = []string{""}
@@ -27,26 +45,30 @@ func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help FuncHelpCallback) (s
 }
 
 // CheckArgs: check arguments are correctly passed then help callback if not
-func CheckArgs(keycommand string, args []string, help FuncHelpCallback) {
+func CheckArgs(keycommand string, args []string, help HelpCallback) {
 	if len(args) == 0 {
-		_ = help()
-		os.Exit(0)
+		PrintError("", true, true, help)
 	}
 }
 
 // GetArgByKey get an argument value based on a key input + a strict mode for required params
-func GetArgByKey(key string, cmdFlags *pflag.FlagSet, strictMode bool) string {
+func GetArgByKey(
+	key string,
+	cmdFlags *pflag.FlagSet,
+	strictMode bool,
+	help HelpCallback,
+) string {
 	value, err := cmdFlags.GetString(key)
 	if strictMode && err != nil {
-		fmt.Printf("[x] %v, is not set and is required for your command.\n", key)
-		os.Exit(0)
+		msg := fmt.Sprintf("[x] %v, is not set and is required for your command.\n", key)
+		PrintError(msg, true, true, help)
 	}
 	return value
 }
 
 // ExtractPaths for a give path (like a glob),we want a full path from it
 // either it's a dir, or a file with any kind of extension
-func ExtractPaths(path string) []string {
+func ExtractPaths(path string, help HelpCallback) []string {
 	var files []string
 
 	paths := strings.Split(path, ",")
@@ -66,7 +88,7 @@ func ExtractPaths(path string) []string {
 			// maintenatn, check if it's a directory
 			info, err := os.Stat(p)
 			if err != nil {
-				fmt.Printf("Error: %v\n", err)
+				fmt.Printf("[x] Error: %v\n", err)
 				continue
 			}
 
@@ -83,7 +105,8 @@ func ExtractPaths(path string) []string {
 					return nil
 				})
 				if err != nil {
-					fmt.Printf("Error: %v\n", err)
+					msg := fmt.Sprintf("[x] Error: %v\n", err)
+					PrintError(msg, true, true, help)
 				}
 			} else {
 				files = append(files, p)

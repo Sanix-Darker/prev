@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -12,27 +11,33 @@ import (
 // ExtractDiffHandler: this handler just extract the diff changes from a file1,file2 argument
 func ExtractDiffHandler(
 	inputString string,
-	helper common.FuncHelpCallback,
+	helper common.HelpCallback,
 	debug bool,
 ) ([]string, error) {
 
 	inputParts := strings.Split(inputString, ",")
 	if len(inputParts) < 2 {
-		fmt.Println("[x] Please provide two files seperated by a comma.")
-		helper()
-		return nil, errors.New("[x] Insufficient input parts")
+		common.PrintError(
+			"[x] Please provide two files seperated by a comma.",
+			true,
+			true,
+			helper,
+		)
 	}
 
 	file1, file2 := common.ExtractPaths(
-		inputParts[0],
+		inputParts[0], helper,
 	), common.ExtractPaths(
-		inputParts[1],
+		inputParts[1], helper,
 	)
 
 	if len(file1) == 0 || len(file2) == 0 {
-		fmt.Println("[x] Please provide two valids files.")
-		helper()
-		return nil, errors.New("[x] Insufficient input parts")
+		common.PrintError(
+			"[x] Please provide two valids files.",
+			true,
+			true,
+			helper,
+		)
 	}
 
 	diffList, _ := core.BuildDiff(file1[0], file2[0])
