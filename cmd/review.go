@@ -49,7 +49,6 @@ var diffCmd = &cobra.Command{
 		d, err := handlers.ExtractDiffHandler(
 			args[0],
 			cmd.Help,
-			DEBUG,
 		)
 		if err != nil {
 			// common.LogError
@@ -77,7 +76,6 @@ var commitCmd = &cobra.Command{
 			repoPath,
 			gitPath,
 			cmd.Help,
-			DEBUG,
 		)
 
 		if err != nil {
@@ -107,11 +105,10 @@ var branchCmd = &cobra.Command{
 			repoPath,
 			gitPath,
 			cmd.Help,
-			DEBUG,
 		)
 
 		if err != nil {
-			// common.LogError
+			common.LogError(err.Error())
 		}
 		prompt := core.BuildPrompt(
 			strings.Join(d, "\n-----------------------------------------\n"),
