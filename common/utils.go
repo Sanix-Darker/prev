@@ -12,15 +12,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
-type HelpCallback func() error
-
 // PrintError: to print an error message
 // in case of "critic" at true, the program will stop on code 0
 func PrintError(
 	message string,
 	critic bool,
 	help_menu bool,
-	help_callback HelpCallback,
+	help_callback func() error,
 ) {
 	fmt.Printf(message + "\n")
 
@@ -37,7 +35,7 @@ func PrintError(
 func ExtractTargetRepoAndGitPath(
 	args []string,
 	cmdFlags *pflag.FlagSet,
-	help HelpCallback,
+	help func() error,
 ) (string, string, string) {
 	targetHash := args[0]
 	repoPath, gitPath := GetRepoPathAndTargetPath(cmdFlags, help)
@@ -45,7 +43,7 @@ func ExtractTargetRepoAndGitPath(
 }
 
 // just return the repo and the target path from
-func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help HelpCallback) (string, string) {
+func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help func() error) (string, string) {
 	repoPath, _ := cmdFlags.GetString("repo")
 	gitPath := ExtractPaths(GetArgByKey("path", cmdFlags, false, help), help)
 
@@ -57,7 +55,7 @@ func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help HelpCallback) (strin
 }
 
 // CheckArgs: check arguments are correctly passed then help callback if not
-func CheckArgs(keycommand string, args []string, help HelpCallback) {
+func CheckArgs(keycommand string, args []string, help func() error) {
 	if len(args) == 0 {
 		PrintError("", true, true, help)
 	}
@@ -68,7 +66,7 @@ func GetArgByKey(
 	key string,
 	cmdFlags *pflag.FlagSet,
 	strictMode bool,
-	help HelpCallback,
+	help func() error,
 ) string {
 	value, err := cmdFlags.GetString(key)
 	if strictMode && err != nil {
@@ -80,7 +78,7 @@ func GetArgByKey(
 
 // ExtractPaths for a give path (like a glob),we want a full path from it
 // either it's a dir, or a file with any kind of extension
-func ExtractPaths(path string, help HelpCallback) []string {
+func ExtractPaths(path string, help func() error) []string {
 	var files []string
 
 	paths := strings.Split(path, ",")
