@@ -8,8 +8,10 @@
     - Taking it from the clipboard.
     - Taking it from a file (you just specify the path and the lineStart/lineEnd of it).
 - add an `ai` with :
-    - `ls` to list all supported AI APIs (with informations about the price etc...) (also provide websites while listing those)
-    - `use` to select the one you want to use (will check if the appropriate selected AI is available) then save the result in a yaml file (~/.config/prev/config.yml) on linux or (....) on MacOs, or (...) on Windows.
+    - `ls` to list all supported AI APIs (with informations about the price etc...)
+        (also provide websites while listing those)
+    - `use` to select the one you want to use (will check if the appropriate selected AI is available)
+        then save the result in a yaml file (~/.config/prev/config.yml) on linux or (....) on MacOs, or (...) on Windows.
     - `show` to see what is used
     - `set-key` you can set an API key only if you have already set what to use as the API AI.
 

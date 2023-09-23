@@ -69,6 +69,7 @@ var commitCmd = &cobra.Command{
 			cmd.Flags(),
 			cmd.Help,
 		)
+
 		d, err := handlers.ExtractCommitHandler(
 			commitHash,
 			repoPath,
@@ -97,12 +98,14 @@ var branchCmd = &cobra.Command{
 			cmd.Flags(),
 			cmd.Help,
 		)
+
 		d, err := handlers.ExtractHashHandler(
 			branchName,
 			repoPath,
 			gitPath,
 			cmd.Help,
 		)
+
 		if err != nil {
 			// common.PrintError
 		}
