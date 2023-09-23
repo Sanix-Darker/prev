@@ -1,11 +1,10 @@
 /*
 Copyright © 2023 sanix-darker <s4nixd@gmail.com>
 */
-package cmd
+package common
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +20,7 @@ func LogError(
 	help_menu bool,
 	help_callback func() error,
 ) {
-	log.Printf(message + "\n")
+	fmt.Printf(message + "\n")
 
 	if critic {
 		if help_menu {
@@ -36,7 +35,7 @@ func LogInfo(
 	message string,
 	callback func(),
 ) {
-	log.Printf(message + "\n")
+	fmt.Printf(message + "\n")
 
 	// for a given callback
 	if callback != nil {

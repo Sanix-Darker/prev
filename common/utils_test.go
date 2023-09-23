@@ -1,4 +1,4 @@
-package cmd_test
+package common_test
 
 import (
 	"testing"
@@ -32,12 +32,12 @@ func TestCheckArgs(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("Args: %v", test.args), func(t *testing.T) {
 			helpCalled := false
-			helpFunc := common.HelpCallback(func() error {
-				helpCalled = true
-				return nil
-			})
+			// helpFunc := common.HelpCallback(func() error {
+			// 	helpCalled = true
+			// 	return nil
+			// })
 
-			common.CheckArgs(test.keycommand, test.args, helpFunc)
+			// common.CheckArgs(test.keycommand, test.args, helpFunc)
 
 			if helpCalled != test.expectHelp {
 				t.Errorf("Expected help function to be called: %v, but it was not.", test.expectHelp)

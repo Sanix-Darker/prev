@@ -7,6 +7,7 @@ The main review module that handle:
   - branch : it will review the changes difference from the base branch.
   - commit : it will review the changes difference from the base branch.
 */
+
 package cmd
 
 import (
@@ -19,9 +20,6 @@ import (
 	models "github.com/sanix-darker/prev/models"
 	"github.com/spf13/cobra"
 )
-
-// debug mode
-var DEBUG = true
 
 var ReviewFlags = []models.FlagStruct{
 	{
@@ -108,7 +106,7 @@ var branchCmd = &cobra.Command{
 		)
 
 		if err != nil {
-			common.LogError(err.Error())
+			common.LogError(err.Error(), true, false, nil)
 		}
 		prompt := core.BuildPrompt(
 			strings.Join(d, "\n-----------------------------------------\n"),

@@ -3,7 +3,6 @@ package handlers
 import (
 	"strings"
 
-	"github.com/sanix-darker/prev/cmd"
 	common "github.com/sanix-darker/prev/common"
 	core "github.com/sanix-darker/prev/core"
 )
@@ -40,7 +39,7 @@ func ExtractDiffHandler(
 	}
 
 	diffList, _ := core.BuildDiff(file1[0], file2[0])
-	if cmd.DEBUG {
+	if common.DEBUG {
 		for _, d := range diffList {
 			common.LogInfo(d, nil)
 		}
