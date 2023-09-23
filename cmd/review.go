@@ -49,10 +49,17 @@ var diffCmd = &cobra.Command{
 			cmd.Help,
 		)
 		if err != nil {
-			// common.LogError
+			common.LogError(err.Error(), true, false, nil)
 		}
-		prompt := core.BuildPrompt(strings.Join(d, "\n"), 500, 5)
-		fmt.Println(prompt)
+
+		common.LogInfo(
+			core.BuildPrompt(
+				strings.Join(d, "\n"),
+				500,
+				5,
+			),
+			nil,
+		)
 	},
 }
 
