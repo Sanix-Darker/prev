@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,21 +13,34 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// PrintError: to print an error message
+// LogError: to print an error message
 // in case of "critic" at true, the program will stop on code 0
-func PrintError(
+func LogError(
 	message string,
 	critic bool,
 	help_menu bool,
 	help_callback func() error,
 ) {
-	fmt.Printf(message + "\n")
+	log.Printf(message + "\n")
 
 	if critic {
 		if help_menu {
 			help_callback()
 		}
 		os.Exit(0)
+	}
+}
+
+// LogInfo: for a simple logging info
+func LogInfo(
+	message string,
+	callback func(),
+) {
+	log.Printf(message + "\n")
+
+	// for a given callback
+	if callback != nil {
+		callback()
 	}
 }
 
@@ -39,10 +53,11 @@ func ExtractTargetRepoAndGitPath(
 ) (string, string, string) {
 	targetHash := args[0]
 	repoPath, gitPath := GetRepoPathAndTargetPath(cmdFlags, help)
+
 	return targetHash, repoPath, gitPath
 }
 
-// just return the repo and the target path from
+// Just return the repo and the target path from
 func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help func() error) (string, string) {
 	repoPath, _ := cmdFlags.GetString("repo")
 	gitPath := ExtractPaths(GetArgByKey("path", cmdFlags, false, help), help)
@@ -57,7 +72,8 @@ func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help func() error) (strin
 // CheckArgs: check arguments are correctly passed then help callback if not
 func CheckArgs(keycommand string, args []string, help func() error) {
 	if len(args) == 0 {
-		PrintError("", true, true, help)
+		help()
+		os.Exit(0)
 	}
 }
 
@@ -71,7 +87,7 @@ func GetArgByKey(
 	value, err := cmdFlags.GetString(key)
 	if strictMode && err != nil {
 		msg := fmt.Sprintf("[x] %v, is not set and is required for your command.\n", key)
-		PrintError(msg, true, true, help)
+		LogError(msg, true, true, help)
 	}
 	return value
 }
@@ -90,7 +106,7 @@ func ExtractPaths(path string, help func() error) []string {
 		if strings.Contains(p, "*") {
 			matches, err := filepath.Glob(p)
 			if err != nil {
-				fmt.Printf("Error: %v\n", err)
+				LogError(fmt.Sprintf("[x] Error: %v\n", err), false, false, help)
 				continue
 			}
 			files = append(files, matches...)
@@ -98,7 +114,7 @@ func ExtractPaths(path string, help func() error) []string {
 			// maintenatn, check if it's a directory
 			info, err := os.Stat(p)
 			if err != nil {
-				fmt.Printf("[x] Error: %v\n", err)
+				LogError(fmt.Sprintf("[x] Error: %v\n", err), false, false, help)
 				continue
 			}
 
@@ -116,7 +132,7 @@ func ExtractPaths(path string, help func() error) []string {
 				})
 				if err != nil {
 					msg := fmt.Sprintf("[x] Error: %v\n", err)
-					PrintError(msg, true, true, help)
+					LogError(msg, true, true, help)
 				}
 			} else {
 				files = append(files, p)

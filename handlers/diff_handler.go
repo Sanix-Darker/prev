@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"strings"
 
 	common "github.com/sanix-darker/prev/common"
@@ -17,7 +16,7 @@ func ExtractDiffHandler(
 
 	inputParts := strings.Split(inputString, ",")
 	if len(inputParts) < 2 {
-		common.PrintError(
+		common.LogError(
 			"[x] Please provide two files seperated by a comma.",
 			true,
 			true,
@@ -32,7 +31,7 @@ func ExtractDiffHandler(
 	)
 
 	if len(file1) == 0 || len(file2) == 0 {
-		common.PrintError(
+		common.LogError(
 			"[x] Please provide two valids files.",
 			true,
 			true,
@@ -43,12 +42,12 @@ func ExtractDiffHandler(
 	diffList, _ := core.BuildDiff(file1[0], file2[0])
 	if debug {
 		for _, d := range diffList {
-			fmt.Println(d)
+			common.LogInfo(d, nil)
 		}
-	}
 
-	fmt.Println(file1[0])
-	fmt.Println(file2[0])
+		common.LogInfo(file1[0], nil)
+		common.LogInfo(file2[0], nil)
+	}
 
 	return diffList, nil
 }

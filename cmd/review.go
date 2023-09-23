@@ -20,7 +20,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// FIXME: hashMap for flags (is this dirty ?)
+// debug mode
+var DEBUG = true
+
 var ReviewFlags = []models.FlagStruct{
 	{
 		Label:        "repo",
@@ -47,10 +49,10 @@ var diffCmd = &cobra.Command{
 		d, err := handlers.ExtractDiffHandler(
 			args[0],
 			cmd.Help,
-			false,
+			DEBUG,
 		)
 		if err != nil {
-			// common.PrintError
+			// common.LogError
 		}
 		prompt := core.BuildPrompt(strings.Join(d, "\n"), 500, 5)
 		fmt.Println(prompt)
@@ -60,7 +62,7 @@ var diffCmd = &cobra.Command{
 // commitCmd represents the commit for the command
 var commitCmd = &cobra.Command{
 	Use:     "commit <commitHash> [--repo] [-p --path]...",
-	Short:   "Select a commit from a .git repo(local or remote)",
+	Short:   "Select a commit from a .git repo (local or remote)",
 	Example: "prev commit 44rtff55g --repo /path/to/git/project\nprev commit 867abbeef --repo /path/to/git/project -p app/main.py,tests/",
 	Run: func(cmd *cobra.Command, args []string) {
 		common.CheckArgs("commit", args, cmd.Help)
@@ -75,10 +77,11 @@ var commitCmd = &cobra.Command{
 			repoPath,
 			gitPath,
 			cmd.Help,
+			DEBUG,
 		)
 
 		if err != nil {
-			// common.PrintError
+			// common.LogError
 		}
 		prompt := core.BuildPrompt(strings.Join(d, "\n"), 500, 5)
 		fmt.Println(prompt)
@@ -104,10 +107,11 @@ var branchCmd = &cobra.Command{
 			repoPath,
 			gitPath,
 			cmd.Help,
+			DEBUG,
 		)
 
 		if err != nil {
-			// common.PrintError
+			// common.LogError
 		}
 		prompt := core.BuildPrompt(
 			strings.Join(d, "\n-----------------------------------------\n"),
@@ -119,19 +123,19 @@ var branchCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(branchCmd, commitCmd, diffCmd)
+	rootCmd.AddCommand(branchCmd, commitCmd)
 
 	// set flags smartly
 	for _, cmd := range rootCmd.Commands() {
-		if cmd != diffCmd { // those are not needed for diffCmd
-			for _, fg := range ReviewFlags {
-				cmd.PersistentFlags().StringP(
-					fg.Label,
-					fg.Short,
-					fg.DefaultValue,
-					fg.Description,
-				)
-			}
+		for _, fg := range ReviewFlags {
+			cmd.PersistentFlags().StringP(
+				fg.Label,
+				fg.Short,
+				fg.DefaultValue,
+				fg.Description,
+			)
 		}
 	}
+
+	rootCmd.AddCommand(diffCmd)
 }
