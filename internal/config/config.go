@@ -26,6 +26,8 @@ type Config struct {
 	ConfigCachePath            string
 	ConfigCachePathFileHistory string
 	Debug                      bool
+	MaxKeyPoints               int8
+	MaxCharactersPerKeyPoints  int16
 	Spin                       printers.ISpinner
 	Printers                   printers.IPrinters
 
@@ -44,7 +46,9 @@ func NewDefaultConfig() Config {
 		ConfigFilePah:              "config.yml",
 		ConfigCachePath:            ".prev_cache",
 		ConfigCachePathFileHistory: "history",
-		Debug:                      true,
+		Debug:                      false,
+		MaxKeyPoints:               3,
+		MaxCharactersPerKeyPoints:  200,
 		InReader:                   os.Stdin,
 		OutWriter:                  os.Stdout,
 		ErrWriter:                  os.Stderr,

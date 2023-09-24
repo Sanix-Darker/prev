@@ -41,14 +41,11 @@ func ExtractDiffHandler(
 	}
 
 	diffList, _ := core.BuildDiff(file1[0], file2[0])
-	if conf.Debug {
-		for _, d := range diffList {
-			common.LogInfo(d, nil)
-		}
-
-		common.LogInfo(file1[0], nil)
-		common.LogInfo(file2[0], nil)
+	for _, d := range diffList {
+		common.LogInfo(d, nil)
 	}
+	common.LogInfo(file1[0], nil)
+	common.LogInfo(file2[0], nil)
 
 	return diffList, nil
 }

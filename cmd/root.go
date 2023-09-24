@@ -15,7 +15,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "prev",
 	Short: "A CodeReviewer cli friend in your terminal.",
-	Long:  `Make code reviews with AI on your terminal for any change on your code.`,
+	Long:  `Get code reviews from AI for any kind of changes (diff, commit, branch).`,
 	// Run: func(cmd *cobra.Command, args []string) { },
 }
 

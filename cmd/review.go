@@ -34,6 +34,7 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			common.CheckArgs("diff", args, cmd.Help)
 
+			common.LogInfo("> reviewing diff in progress...", nil)
 			d, err := handlers.ExtractDiffHandler(
 				conf,
 				args[0],
@@ -44,9 +45,8 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 			}
 
 			prompt := core.BuildPrompt(
-				strings.Join(d, "\n"),
-				500,
-				3,
+				conf,
+				strings.Join(d, "\n-----------------------------------------\n"),
 			)
 
 			chatId, responses, err := apis.ChatGptHandler("You're a software engineer", prompt)
@@ -99,7 +99,10 @@ func NewCommitCmd(conf config.Config) *cobra.Command {
 			if err != nil {
 				// common.LogError
 			}
-			prompt := core.BuildPrompt(strings.Join(d, "\n"), 500, 5)
+			prompt := core.BuildPrompt(
+				conf,
+				strings.Join(d, "\n-----------------------------------------\n"),
+			)
 			fmt.Println(prompt)
 		},
 	}
@@ -135,9 +138,8 @@ func NewBranchCmd(conf config.Config) *cobra.Command {
 				common.LogError(err.Error(), true, false, nil)
 			}
 			prompt := core.BuildPrompt(
+				conf,
 				strings.Join(d, "\n-----------------------------------------\n"),
-				500,
-				5,
 			)
 			fmt.Println(prompt)
 		},

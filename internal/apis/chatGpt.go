@@ -52,12 +52,12 @@ type JSONResponse struct {
 const (
 	API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 	MAX_TOKENS   = 500
-	GPT_MODEL    = "gpt-3.5-turbo"
 )
 
 var (
 	RESTY_CLIENT = resty.New()
 	API_KEY      = os.Getenv("OPEN_AI") // "" // need to fix this letter os.Getenv("OPEN_AI")
+	GPT_MODEL    = os.Getenv("OPEN_AI_MODEL")
 )
 
 // ReqBuilder the request builder with all necessary stuffs

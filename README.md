@@ -2,6 +2,8 @@
 
 A CodeReviewer cli friend in your terminal.
 
+cp .env.example .env
+
 ## REVIEW DIFF FROM TWO FILES
 
 Example of usecase for reviewing the difference between these two files:

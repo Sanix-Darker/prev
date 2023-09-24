@@ -4,34 +4,35 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+
+	"github.com/sanix-darker/prev/internal/config"
 )
 
 // BuildPrompt build the prompt to ask the AI
 func BuildPrompt(
+	conf config.Config,
 	changes string,
-	maxCharPerPoints int,
-	maxKeyPoints int,
 ) string {
 	// this function just build the output string that will be passed to
 	// the selected API for the initial question to be asked.
 	return fmt.Sprintf(`
 You're on a code review,
-this is a diff representations with + for code added and - for code deleted,
-review this list of changes please :
+this is a list of diff representations with + for code added and - for code deleted,
+review the list of changes please :
 
 %s
 
 Please respect those rules :
 - Respond in a Markdown format styling.
-- Respond only with important keypoints, no more than %d characters each per points.
-- If less optimal give comment and code for better approach.
-- No more than %d keypoints.
+- Respond only with important keypoints, no more than %d characters for each per points.
+- If adds are less optimal give comment and code for better approach.
+- No more than %d keypoints per set of changes.
 - Don't mention the keypoint title or enumeration, just the content matter.
 - Priotize simplicity over complexity.
 - Try to respect DRY, SOLID principles while reviewing.
 - Provide only keypoints for code change that should be updated.
 - Provide the optimized, clean and simple code you suggest me at the end, with a small title "suggestion:" for each set of changes blocks.
-`, changes, maxCharPerPoints, maxKeyPoints)
+`, changes, conf.MaxCharactersPerKeyPoints, conf.MaxKeyPoints)
 }
 
 func readFileLines(filename string) ([]string, error) {
