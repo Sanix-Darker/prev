@@ -34,7 +34,6 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			common.CheckArgs("diff", args, cmd.Help)
 
-			common.LogInfo("> reviewing diff in progress...", nil)
 			d, err := handlers.ExtractDiffHandler(
 				conf,
 				args[0],

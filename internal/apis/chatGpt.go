@@ -51,7 +51,7 @@ type JSONResponse struct {
 // Some globals
 const (
 	API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
-	MAX_TOKENS   = 500
+	MAX_TOKENS   = 250
 )
 
 var (

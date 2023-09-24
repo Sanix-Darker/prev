@@ -28,6 +28,7 @@ type Config struct {
 	Debug                      bool
 	MaxKeyPoints               int8
 	MaxCharactersPerKeyPoints  int16
+	ExplainItOrNot             bool
 	Spin                       printers.ISpinner
 	Printers                   printers.IPrinters
 
@@ -48,7 +49,8 @@ func NewDefaultConfig() Config {
 		ConfigCachePathFileHistory: "history",
 		Debug:                      false,
 		MaxKeyPoints:               3,
-		MaxCharactersPerKeyPoints:  200,
+		MaxCharactersPerKeyPoints:  100,
+		ExplainItOrNot:             false, // either we want prev to add in the prompt to explain it or not
 		InReader:                   os.Stdin,
 		OutWriter:                  os.Stdout,
 		ErrWriter:                  os.Stderr,

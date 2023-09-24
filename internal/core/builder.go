@@ -13,26 +13,36 @@ func BuildPrompt(
 	conf config.Config,
 	changes string,
 ) string {
+
+	explainIt := "No explanations, just your optimal code suggestion."
+	// in this way we can just get either the code or code and comments
+	// because some people can understand by just reading the generated code.
+	if conf.ExplainItOrNot {
+		explainIt = fmt.Sprintf(`
+			- Respond only with important keypoints, no more than %d characters for each per points.
+			- If adds are less optimal give comment and code for better approach.
+			- No more than %d keypoints per set of changes.
+			- Provide only keypoints for code change that should be updated.
+			- Add small title "suggestion:" for each set of changes blocks at the end.
+		`, conf.MaxCharactersPerKeyPoints, conf.MaxKeyPoints)
+	}
+
 	// this function just build the output string that will be passed to
 	// the selected API for the initial question to be asked.
 	return fmt.Sprintf(`
-You're on a code review,
-this is a list of diff representations with + for code added and - for code deleted,
+This is a list of diffs with + for adds and - for deletes,
 review the list of changes please :
 
 %s
 
 Please respect those rules :
 - Respond in a Markdown format styling.
-- Respond only with important keypoints, no more than %d characters for each per points.
-- If adds are less optimal give comment and code for better approach.
-- No more than %d keypoints per set of changes.
-- Don't mention the keypoint title or enumeration, just the content matter.
+%s
+- don't duplicate yourself.
 - Priotize simplicity over complexity.
 - Try to respect DRY, SOLID principles while reviewing.
-- Provide only keypoints for code change that should be updated.
-- Provide the optimized, clean and simple code you suggest me at the end, with a small title "suggestion:" for each set of changes blocks.
-`, changes, conf.MaxCharactersPerKeyPoints, conf.MaxKeyPoints)
+- Provide the optimized, clean and simple code you suggest at the end.
+`, changes, explainIt)
 }
 
 func readFileLines(filename string) ([]string, error) {
@@ -57,13 +67,13 @@ func readFileLines(filename string) ([]string, error) {
 
 func BuildDiff(file1, file2 string) ([]string, error) {
 
-	lines1, err := readFileLines(file1)
+	lines_for_file1, err := readFileLines(file1)
 	if err != nil {
 		fmt.Println("Error reading", file1, ":", err)
 		return nil, err
 	}
 
-	lines2, err := readFileLines(file2)
+	lines_for_file2, err := readFileLines(file2)
 	if err != nil {
 		fmt.Println("Error reading", file2, ":", err)
 		return nil, err
@@ -73,30 +83,39 @@ func BuildDiff(file1, file2 string) ([]string, error) {
 	var similarLineCount int
 
 	i, j := 0, 0
-	for i < len(lines1) && j < len(lines2) {
-		if lines1[i] == lines2[j] {
+	for i < len(lines_for_file1) && j < len(lines_for_file2) {
+		// this comparison looks better but l
+		// if strings.EqualFold(
+		// 	strings.TrimSpace(lines1[i]),
+		// 	strings.TrimSpace(lines2[j]),
+		// ) {
+		if lines_for_file1[i] == lines_for_file2[j] {
 			similarLineCount++
-			if similarLineCount == 3 {
+			if i == 0 || i == len(lines_for_file1) {
+				// I want to keep lines similars if it's at the top printed
+				// or whenit's at the end
+				differences = append(differences, lines_for_file1[i])
+			} else if similarLineCount >= 2 {
 				differences = append(differences, "---")
 			}
 			i++
 			j++
 		} else {
 			similarLineCount = 0
-			differences = append(differences, generateDiffLine(lines1[i], lines2[j]))
+			differences = append(differences, generateDiffLine(lines_for_file1[i], lines_for_file2[j]))
 			i++
 			j++
 		}
 	}
 
 	// Handle remaining lines in case one file has more lines than the other.
-	for i < len(lines1) {
-		differences = append(differences, generateDiffLine(lines1[i], ""))
+	for i < len(lines_for_file1) {
+		differences = append(differences, generateDiffLine(lines_for_file1[i], ""))
 		i++
 	}
 
-	for j < len(lines2) {
-		differences = append(differences, generateDiffLine("", lines2[j]))
+	for j < len(lines_for_file2) {
+		differences = append(differences, generateDiffLine("", lines_for_file2[j]))
 		j++
 	}
 
