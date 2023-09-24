@@ -1,6 +1,27 @@
 ## PREV
 
 A CodeReviewer cli friend in your terminal.
+```bash
+Get code reviews from AI for any kind of changes (diff, commit, branch).
+
+Usage:
+  prev [command]
+
+Available Commands:
+  branch      Select a branch from your .git repo(local or remote)
+  commit      Select a commit from a .git repo (local or remote)
+  completion  Generate the autocompletion script for the specified shell
+  diff        review diff between two files changes (not git related).
+  help        Help about any command
+  optim       optimize any given code or snippet.
+  version     Print the application version.
+
+Flags:
+  -h, --help   help for prev
+
+Use "prev [command] --help" for more information about a command.
+```
+
 
 ```bash
 export OPEN_AI=xxxxx

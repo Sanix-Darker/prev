@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/sanix-darker/prev/internal/common"
@@ -50,12 +51,13 @@ type JSONResponse struct {
 
 // Some globals
 const (
-	API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
-	MAX_TOKENS   = 250
+	API_ENDPOINT    = "https://api.openai.com/v1/chat/completions"
+	MAX_TOKENS      = 250
+	REQUEST_TIMEOUT = 15 * time.Second
 )
 
 var (
-	RESTY_CLIENT = resty.New()
+	RESTY_CLIENT = resty.New().SetTimeout(REQUEST_TIMEOUT)
 	API_KEY      = os.Getenv("OPEN_AI") // "" // need to fix this letter os.Getenv("OPEN_AI")
 	GPT_MODEL    = os.Getenv("OPEN_AI_MODEL")
 )

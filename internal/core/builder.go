@@ -56,16 +56,16 @@ func BuildReviewPrompt(
 	}
 
 	prompt := fmt.Sprintf(`
-This is a list of diffs with + for adds and - for deletes,
-review the list of changes please :
+This is a list of diffs with + for adds and - for deletions,
+review them :
 
 %s
 
-Please respect those rules :
+Respect those rules :
 - Respond in a Markdown format styling.
 %s
-- don't duplicate yourself.
-- Priotize simplicity over complexity.
+- check both adds and deletions to pick the better approash to prevent regressions and add optimisations.
+- Priotize simplicity over complexity, when comparing adds and deletions (+ and - lines).
 - Try to respect DRY, SOLID principles while reviewing.
 - Provide the optimized, clean and simple code you suggest at the end.
 	`, changes, explainIt)
