@@ -96,7 +96,7 @@ func NewCommitCmd(conf config.Config) *cobra.Command {
 			)
 
 			if err != nil {
-				// common.LogError
+				common.LogError(err.Error(), true, false, nil)
 			}
 			prompt := core.BuildPrompt(
 				conf,

@@ -23,7 +23,9 @@ build:
 	@echo "building ${BIN_NAME}"
 	@echo "GOPATH=${GOPATH}"
 	go generate ./...
-	go build -o ${BIN_PATH}/${BIN_NAME}
+	GO111MODULE=on \
+	CGO_ENABLED=0 \
+	go build -a -installsuffix cgo -o ${BIN_PATH}/${BIN_NAME}
 
 ## Compile optimized for alpine linux.
 docker-build:

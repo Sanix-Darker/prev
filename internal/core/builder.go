@@ -27,22 +27,24 @@ func BuildPrompt(
 		`, conf.MaxCharactersPerKeyPoints, conf.MaxKeyPoints)
 	}
 
+	prompt := fmt.Sprintf(`
+		This is a list of diffs with + for adds and - for deletes,
+		review the list of changes please :
+
+		%s
+
+		Please respect those rules :
+		- Respond in a Markdown format styling.
+		%s
+		- don't duplicate yourself.
+		- Priotize simplicity over complexity.
+		- Try to respect DRY, SOLID principles while reviewing.
+		- Provide the optimized, clean and simple code you suggest at the end.
+	`, changes, explainIt)
+
 	// this function just build the output string that will be passed to
 	// the selected API for the initial question to be asked.
-	return fmt.Sprintf(`
-This is a list of diffs with + for adds and - for deletes,
-review the list of changes please :
-
-%s
-
-Please respect those rules :
-- Respond in a Markdown format styling.
-%s
-- don't duplicate yourself.
-- Priotize simplicity over complexity.
-- Try to respect DRY, SOLID principles while reviewing.
-- Provide the optimized, clean and simple code you suggest at the end.
-`, changes, explainIt)
+	return prompt
 }
 
 func readFileLines(filename string) ([]string, error) {
