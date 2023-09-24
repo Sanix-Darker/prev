@@ -5,11 +5,39 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/sanix-darker/prev/internal/common"
 	"github.com/sanix-darker/prev/internal/config"
 )
 
-// BuildPrompt build the prompt to ask the AI
-func BuildPrompt(
+// BuildReviewPrompt build the prompt to ask the AI
+func BuildOptimPrompt(
+	conf config.Config,
+	code string,
+) string {
+
+	if len(code) < 5 {
+		common.LogError(
+			"Seems a bad input from your clipbaord ?\nWill not make a call to the API.",
+			true,
+			false,
+			nil,
+		)
+	}
+
+	prompt := fmt.Sprintf(`
+You're a given this snippet of code, give an optimal rewrite of it,
+keep it simple, readable and still working.
+%s
+No need to provide comments, or explanations, just provide the code with a suggestion title.
+Respond in a Markdown format styling.
+	`, code)
+
+	return prompt
+
+}
+
+// BuildReviewPrompt build the prompt to ask the AI
+func BuildReviewPrompt(
 	conf config.Config,
 	changes string,
 ) string {
@@ -19,27 +47,27 @@ func BuildPrompt(
 	// because some people can understand by just reading the generated code.
 	if conf.ExplainItOrNot {
 		explainIt = fmt.Sprintf(`
-			- Respond only with important keypoints, no more than %d characters for each per points.
-			- If adds are less optimal give comment and code for better approach.
-			- No more than %d keypoints per set of changes.
-			- Provide only keypoints for code change that should be updated.
-			- Add small title "suggestion:" for each set of changes blocks at the end.
+- Respond only with important keypoints, no more than %d characters for each per points.
+- If adds are less optimal give comment and code for better approach.
+- No more than %d keypoints per set of changes.
+- Provide only keypoints for code change that should be updated.
+- Add small title "suggestion:" for each set of changes blocks at the end.
 		`, conf.MaxCharactersPerKeyPoints, conf.MaxKeyPoints)
 	}
 
 	prompt := fmt.Sprintf(`
-		This is a list of diffs with + for adds and - for deletes,
-		review the list of changes please :
+This is a list of diffs with + for adds and - for deletes,
+review the list of changes please :
 
-		%s
+%s
 
-		Please respect those rules :
-		- Respond in a Markdown format styling.
-		%s
-		- don't duplicate yourself.
-		- Priotize simplicity over complexity.
-		- Try to respect DRY, SOLID principles while reviewing.
-		- Provide the optimized, clean and simple code you suggest at the end.
+Please respect those rules :
+- Respond in a Markdown format styling.
+%s
+- don't duplicate yourself.
+- Priotize simplicity over complexity.
+- Try to respect DRY, SOLID principles while reviewing.
+- Provide the optimized, clean and simple code you suggest at the end.
 	`, changes, explainIt)
 
 	// this function just build the output string that will be passed to

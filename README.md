@@ -2,7 +2,10 @@
 
 A CodeReviewer cli friend in your terminal.
 
-cp .env.example .env
+```bash
+export OPEN_AI=xxxxx
+export OPEN_AI_MODEL=gpt-3.5-turbo
+```
 
 ## REVIEW DIFF FROM TWO FILES
 

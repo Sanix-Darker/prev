@@ -3,6 +3,7 @@ module github.com/sanix-darker/prev
 go 1.20
 
 require (
+	github.com/atotto/clipboard v0.1.4
 	github.com/briandowns/spinner v1.23.0
 	github.com/go-resty/resty/v2 v2.8.0
 	github.com/manifoldco/promptui v0.9.0

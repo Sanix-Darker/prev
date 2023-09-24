@@ -11,17 +11,53 @@ The main review module that handle:
 package cmd
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/sanix-darker/prev/internal/apis"
 	common "github.com/sanix-darker/prev/internal/common"
-	"github.com/sanix-darker/prev/internal/config"
-	"github.com/sanix-darker/prev/internal/core"
+	config "github.com/sanix-darker/prev/internal/config"
+	core "github.com/sanix-darker/prev/internal/core"
 	handlers "github.com/sanix-darker/prev/internal/handlers"
 	models "github.com/sanix-darker/prev/internal/models"
+
 	"github.com/spf13/cobra"
 )
+
+// NewOptimizeCmd
+func NewOptimizeCmd(conf config.Config) *cobra.Command {
+
+	// diffCmd represents the diffCmd for the command
+	optimCmd := &cobra.Command{
+		Use:     "optim <file1,file2>...",
+		Short:   "optimize any given code or snippet.",
+		Example: "prev optim code_ok.py \nprev optim # will take the input code from your clipboard",
+		Run: func(cmd *cobra.Command, args []string) {
+			// common.CheckArgs("optim", args, cmd.Help)
+
+			clipValue, err := common.GetClipbaordValue()
+			if err != nil {
+				common.LogError(err.Error(), true, true, nil)
+			}
+			prompt := core.BuildOptimPrompt(conf, clipValue)
+
+			if conf.Debug {
+				common.LogInfo("From your clipboard : ", nil)
+				common.LogInfo(prompt, nil)
+			}
+
+			// TODO: add this inside another util that will need a config param
+			// to chose the handler directly here, we should not use chatGPT from
+			// here, this will help doing more funcionnal programming.
+			apis.ApiCall(
+				conf,
+				prompt,
+				apis.ChatGptHandler, // TODO: again this should depend on the prev use command
+			)
+		},
+	}
+
+	return optimCmd
+}
 
 // NewDiffCmd: add a new diff command
 func NewDiffCmd(conf config.Config) *cobra.Command {
@@ -43,28 +79,23 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 				common.LogError(err.Error(), true, false, nil)
 			}
 
-			prompt := core.BuildPrompt(
+			prompt := core.BuildReviewPrompt(
 				conf,
 				strings.Join(d, "\n-----------------------------------------\n"),
 			)
 
-			chatId, responses, err := apis.ChatGptHandler("You're a software engineer", prompt)
-			if err != nil {
-				common.LogError(err.Error(), true, false, nil)
-			}
-
 			if conf.Debug {
-				common.LogInfo(fmt.Sprintf("> chatId: %v\n", chatId), nil)
-				common.LogInfo(fmt.Sprint("> responses: %v\n", string(len(responses))), nil)
+				common.LogInfo(prompt, nil)
 			}
 
-			for _, resp := range responses {
-				if conf.Debug {
-					common.LogInfo("> review: ", nil)
-				}
-				common.LogInfo(resp, nil)
-				// fmt.Print(renders.RenderMarkdown(resp))
-			}
+			// TODO: add this inside another util that will need a config param
+			// to chose the handler directly here, we should not use chatGPT from
+			// here, this will help doing more funcionnal programming.
+			apis.ApiCall(
+				conf,
+				prompt,
+				apis.ChatGptHandler, // TODO: again this should depend on the prev use command
+			)
 		},
 	}
 
@@ -98,11 +129,14 @@ func NewCommitCmd(conf config.Config) *cobra.Command {
 			if err != nil {
 				common.LogError(err.Error(), true, false, nil)
 			}
-			prompt := core.BuildPrompt(
+			prompt := core.BuildReviewPrompt(
 				conf,
 				strings.Join(d, "\n-----------------------------------------\n"),
 			)
-			fmt.Println(prompt)
+
+			if conf.Debug {
+				common.LogInfo(prompt, nil)
+			}
 		},
 	}
 
@@ -136,11 +170,14 @@ func NewBranchCmd(conf config.Config) *cobra.Command {
 			if err != nil {
 				common.LogError(err.Error(), true, false, nil)
 			}
-			prompt := core.BuildPrompt(
+			prompt := core.BuildReviewPrompt(
 				conf,
 				strings.Join(d, "\n-----------------------------------------\n"),
 			)
-			fmt.Println(prompt)
+
+			if conf.Debug {
+				common.LogInfo(prompt, nil)
+			}
 		},
 	}
 
@@ -179,4 +216,7 @@ func init() {
 
 	// diff
 	rootCmd.AddCommand(NewDiffCmd(conf))
+
+	// optim
+	rootCmd.AddCommand(NewOptimizeCmd(conf))
 }
