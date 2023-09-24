@@ -16,130 +16,157 @@ import (
 
 	"github.com/sanix-darker/prev/internal/apis"
 	common "github.com/sanix-darker/prev/internal/common"
+	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/core"
 	handlers "github.com/sanix-darker/prev/internal/handlers"
 	models "github.com/sanix-darker/prev/internal/models"
 	"github.com/spf13/cobra"
 )
 
-var ReviewFlags = []models.FlagStruct{
-	{
-		Label:        "repo",
-		Short:        "r",
-		DefaultValue: ".",
-		Description:  "target git repo (loca-path/git-url).",
-	},
-	{
-		Label:        "path",
-		Short:        "p",
-		DefaultValue: ".",
-		Description:  "target file/directory to inspect",
-	},
+// NewDiffCmd: add a new diff command
+func NewDiffCmd(conf config.Config) *cobra.Command {
+
+	// diffCmd represents the diffCmd for the command
+	diffCmd := &cobra.Command{
+		Use:     "diff <file1,file2>...",
+		Short:   "review diff between two files changes (not git related).",
+		Example: "prev diff code_ok.py,code_bad.py",
+		Run: func(cmd *cobra.Command, args []string) {
+			common.CheckArgs("diff", args, cmd.Help)
+
+			d, err := handlers.ExtractDiffHandler(
+				conf,
+				args[0],
+				cmd.Help,
+			)
+			if err != nil {
+				common.LogError(err.Error(), true, false, nil)
+			}
+
+			prompt := core.BuildPrompt(
+				strings.Join(d, "\n"),
+				500,
+				3,
+			)
+
+			chatId, responses, err := apis.ChatGptHandler("You're a software engineer", prompt)
+			if err != nil {
+				common.LogError(err.Error(), true, false, nil)
+			}
+
+			if conf.Debug {
+				common.LogInfo(fmt.Sprintf("> chatId: %v\n", chatId), nil)
+				common.LogInfo(fmt.Sprint("> responses: %v\n", string(len(responses))), nil)
+			}
+
+			for _, resp := range responses {
+				if conf.Debug {
+					common.LogInfo("> review: ", nil)
+				}
+				common.LogInfo(resp, nil)
+				// fmt.Print(renders.RenderMarkdown(resp))
+			}
+		},
+	}
+
+	return diffCmd
 }
 
-// diffCmd represents the diffCmd for the command
-var diffCmd = &cobra.Command{
-	Use:     "diff <file1,file2>...",
-	Short:   "review diff between two files changes (not git related).",
-	Example: "prev diff code_ok.py,code_bad.py",
-	Run: func(cmd *cobra.Command, args []string) {
-		common.CheckArgs("diff", args, cmd.Help)
+func NewCommitCmd(conf config.Config) *cobra.Command {
+	// commitCmd represents the commit for the command
+	commitCmd := &cobra.Command{
+		Use:     "commit <commitHash> [--repo] [-p --path]...",
+		Short:   "Select a commit from a .git repo (local or remote)",
+		Example: "prev commit 44rtff55g --repo /path/to/git/project\nprev commit 867abbeef --repo /path/to/git/project -p app/main.py,tests/",
+		Run: func(cmd *cobra.Command, args []string) {
+			common.CheckArgs("commit", args, cmd.Help)
 
-		d, err := handlers.ExtractDiffHandler(
-			args[0],
-			cmd.Help,
-		)
-		if err != nil {
-			common.LogError(err.Error(), true, false, nil)
-		}
+			commitHash, repoPath, gitPath := common.ExtractTargetRepoAndGitPath(
+				conf,
+				args,
+				cmd.Flags(),
+				cmd.Help,
+			)
 
-		prompt := core.BuildPrompt(
-			strings.Join(d, "\n"),
-			500,
-			3,
-		)
+			d, err := handlers.ExtractCommitHandler(
+				conf,
+				commitHash,
+				repoPath,
+				gitPath,
+				cmd.Help,
+			)
 
-		chatId, responses, err := apis.ChatGptHandler("You're a software engineer", prompt)
-		if err != nil {
-			common.LogError(err.Error(), true, false, nil)
-		}
-		common.LogInfo("> chatId: "+chatId, nil)
-		common.LogInfo("> responses: "+string(len(responses)), nil)
-		for _, resp := range responses {
-			common.LogInfo("> review: ", nil)
-			fmt.Println(resp)
-			// fmt.Print(renders.RenderMarkdown(resp))
-		}
-	},
+			if err != nil {
+				// common.LogError
+			}
+			prompt := core.BuildPrompt(strings.Join(d, "\n"), 500, 5)
+			fmt.Println(prompt)
+		},
+	}
+
+	return commitCmd
 }
 
-// commitCmd represents the commit for the command
-var commitCmd = &cobra.Command{
-	Use:     "commit <commitHash> [--repo] [-p --path]...",
-	Short:   "Select a commit from a .git repo (local or remote)",
-	Example: "prev commit 44rtff55g --repo /path/to/git/project\nprev commit 867abbeef --repo /path/to/git/project -p app/main.py,tests/",
-	Run: func(cmd *cobra.Command, args []string) {
-		common.CheckArgs("commit", args, cmd.Help)
+func NewBranchCmd(conf config.Config) *cobra.Command {
+	// branchCmd represents the branch for the command
+	branchCmd := &cobra.Command{
+		Use:     "branch <branchName> [--repo] [-p --path]...",
+		Short:   "Select a branch from your .git repo(local or remote)",
+		Example: "prev branch f/hot-fix --repo /path/to/git/project\nprev branch f/hight-feat --repo /path/to/git/project -p Cargo.toml,lib/eraser.rs",
+		Args:    cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			common.CheckArgs("branch", args, cmd.Help)
 
-		commitHash, repoPath, gitPath := common.ExtractTargetRepoAndGitPath(args,
-			cmd.Flags(),
-			cmd.Help,
-		)
+			branchName, repoPath, gitPath := common.ExtractTargetRepoAndGitPath(
+				conf,
+				args,
+				cmd.Flags(),
+				cmd.Help,
+			)
 
-		d, err := handlers.ExtractCommitHandler(
-			commitHash,
-			repoPath,
-			gitPath,
-			cmd.Help,
-		)
+			d, err := handlers.ExtractBranchHandler(
+				branchName,
+				repoPath,
+				gitPath,
+				cmd.Help,
+			)
 
-		if err != nil {
-			// common.LogError
-		}
-		prompt := core.BuildPrompt(strings.Join(d, "\n"), 500, 5)
-		fmt.Println(prompt)
-	},
-}
+			if err != nil {
+				common.LogError(err.Error(), true, false, nil)
+			}
+			prompt := core.BuildPrompt(
+				strings.Join(d, "\n-----------------------------------------\n"),
+				500,
+				5,
+			)
+			fmt.Println(prompt)
+		},
+	}
 
-// branchCmd represents the branch for the command
-var branchCmd = &cobra.Command{
-	Use:     "branch <branchName> [--repo] [-p --path]...",
-	Short:   "Select a branch from your .git repo(local or remote)",
-	Example: "prev branch f/hot-fix --repo /path/to/git/project\nprev branch f/hight-feat --repo /path/to/git/project -p Cargo.toml,lib/eraser.rs",
-	Args:    cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		common.CheckArgs("branch", args, cmd.Help)
-
-		branchName, repoPath, gitPath := common.ExtractTargetRepoAndGitPath(args,
-			cmd.Flags(),
-			cmd.Help,
-		)
-
-		d, err := handlers.ExtractHashHandler(
-			branchName,
-			repoPath,
-			gitPath,
-			cmd.Help,
-		)
-
-		if err != nil {
-			common.LogError(err.Error(), true, false, nil)
-		}
-		prompt := core.BuildPrompt(
-			strings.Join(d, "\n-----------------------------------------\n"),
-			500,
-			5,
-		)
-		fmt.Println(prompt)
-	},
+	return branchCmd
 }
 
 func init() {
-	rootCmd.AddCommand(branchCmd, commitCmd)
 
-	// set flags smartly
+	conf := config.NewDefaultConfig()
+	rootCmd.AddCommand(NewBranchCmd(conf), NewCommitCmd(conf))
+
+	// set common flags smartly (repo, paths)
 	for _, cmd := range rootCmd.Commands() {
-		for _, fg := range ReviewFlags {
+		for _, fg := range []models.FlagStruct{
+			{
+				Label:        "repo",
+				Short:        "r",
+				DefaultValue: ".",
+				Description:  "target git repo (loca-path/git-url).",
+			},
+			{
+				Label:        "path",
+				Short:        "p",
+				DefaultValue: ".",
+				Description:  "target file/directory to inspect",
+			},
+		} {
 			cmd.PersistentFlags().StringP(
 				fg.Label,
 				fg.Short,
@@ -149,5 +176,6 @@ func init() {
 		}
 	}
 
-	rootCmd.AddCommand(diffCmd)
+	// diff
+	rootCmd.AddCommand(NewDiffCmd(conf))
 }

@@ -5,7 +5,9 @@ Licensed under Apache 2.0 License.
 */
 package main
 
-import "github.com/sanix-darker/prev/cmd"
+import (
+	"github.com/sanix-darker/prev/cmd"
+)
 
 func main() {
 	cmd.Execute()
