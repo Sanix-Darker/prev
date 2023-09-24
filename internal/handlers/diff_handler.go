@@ -3,8 +3,9 @@ package handlers
 import (
 	"strings"
 
-	common "github.com/sanix-darker/prev/common"
-	core "github.com/sanix-darker/prev/core"
+	common "github.com/sanix-darker/prev/internal/common"
+	config "github.com/sanix-darker/prev/internal/config"
+	core "github.com/sanix-darker/prev/internal/core"
 )
 
 // ExtractDiffHandler: this handler just extract the diff changes from a file1,file2 argument
@@ -39,7 +40,7 @@ func ExtractDiffHandler(
 	}
 
 	diffList, _ := core.BuildDiff(file1[0], file2[0])
-	if common.DEBUG {
+	if config.DEBUG {
 		for _, d := range diffList {
 			common.LogInfo(d, nil)
 		}
