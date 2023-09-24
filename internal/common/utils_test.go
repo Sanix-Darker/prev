@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	common "github.com/sanix-darker/prev/common"
+	common "github.com/sanix-darker/prev/internal/common"
 
 	"github.com/spf13/pflag"
 )

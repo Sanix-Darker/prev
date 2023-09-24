@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/sanix-darker/prev/common"
+	"github.com/sanix-darker/prev/internal/common"
 )
 
 // req
