@@ -3,6 +3,8 @@ package apis
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/sanix-darker/prev/internal/common"
@@ -49,18 +51,28 @@ type JSONResponse struct {
 
 // Some globals
 const (
-	API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
-	MAX_TOKENS   = 500
-	GPT_MODEL    = "gpt-3.5-turbo"
+	API_ENDPOINT    = "https://api.openai.com/v1/chat/completions"
+	MAX_TOKENS      = 250
+	REQUEST_TIMEOUT = 15 * time.Second
 )
 
 var (
-	RESTY_CLIENT = resty.New()
-	API_KEY      = "" // need to fix this letter os.Getenv("OPEN_AI")
+	RESTY_CLIENT = resty.New().SetTimeout(REQUEST_TIMEOUT)
+	API_KEY      = os.Getenv("OPEN_AI") // "" // need to fix this letter os.Getenv("OPEN_AI")
+	GPT_MODEL    = os.Getenv("OPEN_AI_MODEL")
 )
 
 // ReqBuilder the request builder with all necessary stuffs
 func ReqBuilder() *resty.Request {
+	if len(API_KEY) == 0 {
+		common.LogError(
+			"No API-KEY set for chatGPT client !",
+			true,
+			false,
+			nil,
+		)
+		os.Exit(1)
+	}
 	return RESTY_CLIENT.R().SetAuthToken(
 		API_KEY,
 	).SetHeader(

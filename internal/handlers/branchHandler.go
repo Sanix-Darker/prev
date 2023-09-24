@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-func ExtractHashHandler(
+func ExtractBranchHandler(
 	branchName string,
 	repoPath string,
 	gitPath string,

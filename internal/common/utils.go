@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sanix-darker/prev/internal/config"
 	"github.com/spf13/pflag"
 )
 
@@ -46,12 +47,19 @@ func LogInfo(
 // ExtractTargetRepoAndGitPath; extract target (commmitHash/branchName)
 // , the .git path and the repo path
 func ExtractTargetRepoAndGitPath(
+	conf config.Config,
 	args []string,
 	cmdFlags *pflag.FlagSet,
 	help func() error,
 ) (string, string, string) {
 	targetHash := args[0]
 	repoPath, gitPath := GetRepoPathAndTargetPath(cmdFlags, help)
+
+	if conf.Debug {
+		LogInfo(fmt.Sprintf("> repo: %v\n", repoPath), nil)
+		LogInfo(fmt.Sprintf("> gitPath: %v\n", gitPath), nil)
+		LogInfo(fmt.Sprintf("> targetHash: %v\n", targetHash), nil)
+	}
 
 	return targetHash, repoPath, gitPath
 }

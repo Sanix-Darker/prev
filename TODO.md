@@ -7,7 +7,7 @@
 - [ ] add an `optimize` target (get an input code and try to optimize it for you).
     - Taking it from the clipboard.
     - Taking it from a file (you just specify the path and the lineStart/lineEnd of it).
-- add an `ai` with :
+- [  ] add an `ai` with :
     - `ls` to list all supported AI APIs (with informations about the price etc...)
         (also provide websites while listing those)
     - `use` to select the one you want to use (will check if the appropriate selected AI is available)
@@ -16,6 +16,10 @@
     - `set-key` you can set an API key only if you have already set what to use as the API AI.
 
 - [  ] Pipe the output of the review inside the glow CLI (like, add the possibility to add in the configuration a markdown renderer)
+
+- [  ] add tests
+- [  ] define a max item diff to print to the screen and just make a ...
+- [  ] but while reviewing, press n (next) for each set of changes in case of a branch/commit review
 
 - [ ] set the context-code from any input if any provided (like the clipboard), this should be set and available inside the config of prev.
 - [ ] complete the prompt builder
@@ -43,12 +47,6 @@
     - [ ] PREVV.ai Self Hosted  (yes, prev will have one(barely as fast as the others but should be able to respond some interesting stuffs)) + those configurations needed PRE_API_KEY to be set and stored
 
 - [ ] the power of prev should be all the potentials client for that (not just OPEN AI)
-- add "typo" correction to the prompt review
-- possibility to add prev as a pre-commit tool too
-- find a way to track downloads of prev
-
-- [x] fix all .gh-actions error havings (am ignoring this for now)
-
 - add "typo" correction to the prompt review
 - possibility to add prev as a pre-commit tool too
 - find a way to track downloads of prev
