@@ -15,7 +15,7 @@
     - `show` to see what is used
     - `set-key` you can set an API key only if you have already set what to use as the API AI.
 
-- [  ] Pipe the output of the review inside the glow CLI
+- [  ] Pipe the output of the review inside the glow CLI (like, add the possibility to add in the configuration a markdown renderer)
 
 - [ ] set the context-code from any input if any provided (like the clipboard), this should be set and available inside the config of prev.
 - [ ] complete the prompt builder

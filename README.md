@@ -4,8 +4,49 @@ A CodeReviewer cli friend in your terminal.
 
 ## REVIEW DIFF FROM TWO FILES
 
+Example of usecase for reviewing the difference between these two files:
+
+- fixtures/test_diff1.py:
+```python
+def get_bigger_value(given_dict: dict) -> int:
+
+    maxx = 0
+    for k in given_dict.keys():
+        if given_dict[k] > maxx:
+            maxx = given_dict[k]
+
+    return maxx
+
+# this is a comment
+# this is a comment
+
+class Test:
+    val = 1
+```
+
+- fixtures/test_diff2.py:
+```python
+def get_bigger_value(given_dict: dict) -> int:
+    if not given_dict:
+        return 0
+
+    return max(given_dict.values())
+
+# this is a comment
+# this is a comment
+
+class Test:
+    def __init__(self, val) -> None:
+        val = val
+        val = 1
+```
+
+We just need to run prev on those two files and get:
 ```bash
 $ prev diff fixtures/test_diff1.py,fixtures/test_diff2.py
+```
+
+```markdown
 +     if not given_dict:
 -
 +         return 0
