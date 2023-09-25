@@ -5,8 +5,8 @@
 ## TODO or ROADMAD (choose)
 
 - [ ] add an `optimize` target (get an input code and try to optimize it for you).
-    - Taking it from the clipboard.
-    - Taking it from a file (you just specify the path and the lineStart/lineEnd of it).
+    - [x] Taking it from the clipboard.
+    - [ ] Taking it from a file (you just specify the path and the lineStart/lineEnd of it).
 - [  ] add an `ai` with :
     - `ls` to list all supported AI APIs (with informations about the price etc...)
         (also provide websites while listing those)
@@ -28,6 +28,8 @@
 - [ ] regarding tests, add fixtures (fixtures/module.py, ...) _like real life code_
     and mock all api service calls + fix all the available tests + add more
 
+- [  ] Find a way to reuse a precedent chatId to keepthe context of a previous
+  chat
 - [ ] Add support for these APIs (after checking if they support API calls and what is free/paid):
     - [ ] ChatGPT AI (you can specify the model version) of course (as default it's 3.5)
     - [ ] Bing AI (from Microsoft) (https://www.bing.com/new)
@@ -51,10 +53,12 @@
 - possibility to add prev as a pre-commit tool too
 - find a way to track downloads of prev
 
-- [ ] for branch diff, allow these formats branch1:branch2 or if it's only branch provided, check with the master (or the main branch available ? maybe the golang git API have that ? Need to check...)
+- [ ] for branch diff, allow these formats branch1:branch2 or if it's only branch provided, check with the master (or the main branch available ? maybe the golang git API have that ? Need to check...).
 
-- [ ] Make it a product paid $1/MONTH and 10$/YEAR
-- [ ] write a gihub action that use the CLI to evaluate a Pull request
+- [ ] Make it a product paid $1/MONTH and 10$/YEAR (not sure for this).
+- [ ] write a gihub action that use the CLI to evaluate a Pull request.
+- [ ] write a nvim plugin that use the CLI to evaluate code input and give
+  suggestions about it.
 
 -> [ ] For a quick access, make a small web app with a form just to get a valid repository and then
 it will evaluate the code and make a code review
