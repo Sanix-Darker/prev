@@ -3,6 +3,7 @@ module github.com/sanix-darker/prev
 go 1.20
 
 require (
+	github.com/MichaelMure/go-term-markdown v0.1.4
 	github.com/atotto/clipboard v0.1.4
 	github.com/briandowns/spinner v1.23.0
 	github.com/go-resty/resty/v2 v2.8.0
@@ -17,7 +18,6 @@ require (
 )
 
 require (
-	github.com/MichaelMure/go-term-markdown v0.1.4 // indirect
 	github.com/MichaelMure/go-term-text v0.3.1 // indirect
 	github.com/alecthomas/chroma v0.7.1 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
