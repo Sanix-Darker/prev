@@ -5,6 +5,7 @@ import (
 
 	"github.com/sanix-darker/prev/internal/common"
 	"github.com/sanix-darker/prev/internal/config"
+	"github.com/sanix-darker/prev/internal/renders"
 )
 
 func ApiCall(
@@ -27,7 +28,7 @@ func ApiCall(
 		if conf.Debug {
 			common.LogInfo("> review: ", nil)
 		}
-		common.LogInfo(resp, nil)
-		// fmt.Print(renders.RenderMarkdown(resp))
+		// common.LogInfo(resp, nil)
+		fmt.Print(renders.RenderMarkdown(resp))
 	}
 }

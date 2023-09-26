@@ -32,13 +32,15 @@ func NewOptimizeCmd(conf config.Config) *cobra.Command {
 		Short:   "optimize any given code or snippet.",
 		Example: "prev optim code_ok.py \nprev optim # will take the input code from your clipboard",
 		Run: func(cmd *cobra.Command, args []string) {
-			// common.CheckArgs("optim", args, cmd.Help)
 
-			clipValue, err := common.GetClipbaordValue()
+			prompt, err := handlers.ExtractOptimtHandler(
+				conf,
+				args,
+				cmd.Help,
+			)
 			if err != nil {
-				common.LogError(err.Error(), true, true, nil)
+				common.LogError(err.Error(), true, true, cmd.Help)
 			}
-			prompt := core.BuildOptimPrompt(conf, clipValue)
 
 			if conf.Debug {
 				common.LogInfo("From your clipboard : ", nil)

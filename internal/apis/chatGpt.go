@@ -58,8 +58,8 @@ const (
 
 var (
 	RESTY_CLIENT = resty.New().SetTimeout(REQUEST_TIMEOUT)
-	API_KEY      = os.Getenv("OPEN_AI") // "" // need to fix this letter os.Getenv("OPEN_AI")
-	GPT_MODEL    = os.Getenv("OPEN_AI_MODEL")
+	API_KEY      = os.Getenv("OPEN_AI")       // "" // need to fix this letter os.Getenv("OPEN_AI")
+	GPT_MODEL    = os.Getenv("OPEN_AI_MODEL") // gpt-3.5-turbo
 )
 
 // ReqBuilder the request builder with all necessary stuffs

@@ -17,7 +17,7 @@ func BuildOptimPrompt(
 
 	if len(code) < 5 {
 		common.LogError(
-			"Seems a bad input from your clipbaord ?\nWill not make a call to the API.",
+			"Your input data seems too small (<5) ?\nWill not make a call to the API.",
 			true,
 			false,
 			nil,
@@ -56,18 +56,18 @@ func BuildReviewPrompt(
 	}
 
 	prompt := fmt.Sprintf(`
-This is a list of diffs with + for adds and - for deletions,
-review them :
+Given + and - in this code, First, try to understand what's it about,
+then choose what is the best approach, then review what have beend added :
 
 %s
 
 Respect those rules :
 - Respond in a Markdown format styling.
 %s
-- check both adds and deletions to pick the better approash to prevent regressions and add optimisations.
-- Priotize simplicity over complexity, when comparing adds and deletions (+ and - lines).
+- Give a better approash to prevent regressions, add optimisations.
+- Keep it Simple, compact and clear.
 - Try to respect DRY, SOLID principles while reviewing.
-- Provide the optimized, clean and simple code you suggest at the end.
+- Provide the best optimized suggestion at the end.
 	`, changes, explainIt)
 
 	// this function just build the output string that will be passed to
@@ -75,7 +75,7 @@ Respect those rules :
 	return prompt
 }
 
-func readFileLines(filename string) ([]string, error) {
+func ReadFileLines(filename string) ([]string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -97,13 +97,13 @@ func readFileLines(filename string) ([]string, error) {
 
 func BuildDiff(file1, file2 string) ([]string, error) {
 
-	lines_for_file1, err := readFileLines(file1)
+	lines_for_file1, err := ReadFileLines(file1)
 	if err != nil {
 		fmt.Println("Error reading", file1, ":", err)
 		return nil, err
 	}
 
-	lines_for_file2, err := readFileLines(file2)
+	lines_for_file2, err := ReadFileLines(file2)
 	if err != nil {
 		fmt.Println("Error reading", file2, ":", err)
 		return nil, err
