@@ -126,5 +126,30 @@ func ChatGptHandler(systemPrompt string, questionPrompt string) (string, []strin
 		responseChoices = append(responseChoices, choice.Message.Content)
 	}
 
+	// TODO: implement the streaming mode, should add a new param to this function
+	// and then make completion when it' set
+	// // Create a channel to handle response streaming
+	// 	stream := make(chan string)
+
+	// 	// Goroutine to handle response streaming
+	// 	go func() {
+	// 		defer close(stream)
+	// 		buf := new(bytes.Buffer)
+	// 		_, _ = io.Copy(buf, resp.RawBody())
+	// 		responseText := buf.String()
+	// 		// Split the response into individual messages (each ending with '\n')
+	// 		messages := strings.Split(responseText, "\n")
+	// 		for _, msg := range messages {
+	// 			if msg != "" {
+	// 				stream <- msg
+	// 			}
+	// 		}
+	// 	}()
+
+	// 	// Loop to process and print the streaming responses
+	// 	for message := range stream {
+	// 		fmt.Println("Response:", message)
+	// 	}
+
 	return responseId, responseChoices, nil
 }
