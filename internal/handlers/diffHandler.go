@@ -13,7 +13,7 @@ func ExtractDiffHandler(
 	conf config.Config,
 	inputString string,
 	helper func() error,
-) ([]string, error) {
+) (string, error) {
 
 	inputParts := strings.Split(inputString, ",")
 	if len(inputParts) < 2 {
@@ -41,9 +41,10 @@ func ExtractDiffHandler(
 	}
 
 	diffList, _ := core.BuildDiff(file1[0], file2[0])
-	for _, d := range diffList {
-		common.LogInfo(d, nil)
+	if conf.Debug {
+		common.LogInfo(diffList, nil)
 	}
+
 	common.LogInfo(file1[0], nil)
 	common.LogInfo(file2[0], nil)
 

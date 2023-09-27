@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"strings"
-
 	"github.com/sanix-darker/prev/internal/apis"
 	common "github.com/sanix-darker/prev/internal/common"
 	config "github.com/sanix-darker/prev/internal/config"
@@ -34,7 +32,7 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 
 			prompt := core.BuildReviewPrompt(
 				conf,
-				strings.Join(d, "\n-----------------------------------------\n"),
+				d,
 			)
 
 			if conf.Debug {
@@ -44,6 +42,7 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 			// TODO: add this inside another util that will need a config param
 			// to chose the handler directly here, we should not use chatGPT from
 			// here, this will help doing more funcionnal programming.
+
 			apis.ApiCall(
 				conf,
 				prompt,

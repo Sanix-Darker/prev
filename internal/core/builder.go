@@ -3,10 +3,13 @@ package core
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/sanix-darker/prev/internal/common"
 	"github.com/sanix-darker/prev/internal/config"
+	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
 // BuildReviewPrompt build the prompt to ask the AI
@@ -95,58 +98,42 @@ func ReadFileLines(filename string) ([]string, error) {
 	return lines, nil
 }
 
-func BuildDiff(file1, file2 string) ([]string, error) {
+func cleanDiffLine(formating string, line string) string {
+	return strings.ReplaceAll(fmt.Sprintf(formating, line), "\n", "")
+}
 
-	lines_for_file1, err := ReadFileLines(file1)
+func BuildDiff(filePath1, filePath2 string) (string, error) {
+
+	// Read the contents of the first file
+	content1, err := ioutil.ReadFile(filePath1)
 	if err != nil {
-		fmt.Println("Error reading", file1, ":", err)
-		return nil, err
+		return "", err
 	}
 
-	lines_for_file2, err := ReadFileLines(file2)
+	// Read the contents of the second file
+	content2, err := ioutil.ReadFile(filePath2)
 	if err != nil {
-		fmt.Println("Error reading", file2, ":", err)
-		return nil, err
+		return "", err
 	}
 
-	var differences []string
-	var similarLineCount int
+	// Compare the contents using diff-match-patch
+	dmp := diffmatchpatch.New()
+	diffs := dmp.DiffMain(string(content1), string(content2), true)
 
-	i, j := 0, 0
-	for i < len(lines_for_file1) && j < len(lines_for_file2) {
-		if lines_for_file1[i] == lines_for_file2[j] {
-			similarLineCount++
-			if i == 0 || i == len(lines_for_file1) {
-				// I want to keep lines similars if it's at the top printed
-				// or whenit's at the end
-				differences = append(differences, lines_for_file1[i])
-			} else if similarLineCount >= 2 {
-				differences = append(differences, "---")
+	// Generate the diff output
+	var changes []string
+	for i, diff := range diffs {
+		switch diff.Type {
+		case diffmatchpatch.DiffInsert:
+			changes = append(changes, cleanDiffLine("+ %s", diff.Text))
+		case diffmatchpatch.DiffDelete:
+			changes = append(changes, cleanDiffLine("- %s", diff.Text))
+		default:
+			if len(diff.Text) > 0 && i < 2 {
+				changes = append(changes, cleanDiffLine("%s", diff.Text))
 			}
-			i++
-			j++
-		} else {
-			similarLineCount = 0
-			differences = append(differences, generateDiffLine(lines_for_file1[i], lines_for_file2[j]))
-			i++
-			j++
 		}
 	}
 
-	// Handle remaining lines in case one file has more lines than the other.
-	for i < len(lines_for_file1) {
-		differences = append(differences, generateDiffLine(lines_for_file1[i], ""))
-		i++
-	}
-
-	for j < len(lines_for_file2) {
-		differences = append(differences, generateDiffLine("", lines_for_file2[j]))
-		j++
-	}
-
-	return differences, nil
-}
-
-func generateDiffLine(line1, line2 string) string {
-	return fmt.Sprintf("+ %s\n- %s", line2, line1)
+	return strings.Join(changes, "\n"), nil
 }

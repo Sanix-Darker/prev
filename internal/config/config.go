@@ -47,7 +47,7 @@ func NewDefaultConfig() Config {
 		ConfigFilePah:              "config.yml",
 		ConfigCachePath:            ".prev_cache",
 		ConfigCachePathFileHistory: "history",
-		Debug:                      false,
+		Debug:                      true,
 		MaxKeyPoints:               3,
 		MaxCharactersPerKeyPoints:  100,
 		ExplainItOrNot:             false, // either we want prev to add in the prompt to explain it or not
