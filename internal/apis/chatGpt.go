@@ -82,13 +82,17 @@ func ReqBuilder() *resty.Request {
 }
 
 // Handler
-func ChatGptHandler(systemPrompt string, questionPrompt string) (string, []string, error) {
+func ChatGptHandler(systemPrompt string, assistantPrompt string, questionPrompt string) (string, []string, error) {
 	response, err := ReqBuilder().SetBody(RequestReq{
 		Model: GPT_MODEL,
 		Messages: []MessageReq{
 			{
 				Role:    "system",
 				Content: systemPrompt,
+			},
+			{
+				Role:    "assistant",
+				Content: assistantPrompt,
 			},
 			{
 				Role:    "user",

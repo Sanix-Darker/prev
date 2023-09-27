@@ -25,7 +25,9 @@
 <!--        --env OPENAI_API_KEY="your OPENAI API key" \ -->
 <!--        --volume gpt-cache:/tmp/shell_gpt \ -->
 <!-- ghcr.io/ther1d/shell_gpt --chat rainbow "what are the colors of a rainbow" -->
-
+- [ ] A GIGA CONCURANT : (https://github.com/appleboy/CodeGPT)
+- [ ] on code review mode for (branch or commit, extract also commit title, message, list of files changes)
+- [ ] Another cool example (of github integration with GPT and AI): (https://github.com/sweepai/sweep)
 - [ ] Pipe the output of the review inside the glow CLI (like,
         add the possibility to add in the configuration a markdown renderer)
 - [ ] Maybe cover most of the use case here :https://www.youtube.com/watch?v=7k0KZsheLP4 (but for the review-code idea)
