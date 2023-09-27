@@ -27,12 +27,12 @@ func readFileLines(filename string) ([]string, error) {
 }
 
 func compareLines(lines1, lines2 []string) []string {
-	var differences []string
+	differences := []string{}
 	var similarLineCount int
 
 	i, j := 0, 0
-	for i < len(lines1) && j < len(lines2) {
-		if lines1[i] == lines2[j] {
+	for i < len(lines1) || j < len(lines2) {
+		if i < len(lines1) && j < len(lines2) && lines1[i] == lines2[j] {
 			similarLineCount++
 			if similarLineCount == 3 {
 				differences = append(differences, "---")
@@ -40,22 +40,16 @@ func compareLines(lines1, lines2 []string) []string {
 			i++
 			j++
 		} else {
+			if i < len(lines1) {
+				differences = append(differences, generateDiffLine(lines1[i], ""))
+				i++
+			}
+			if j < len(lines2) {
+				differences = append(differences, generateDiffLine("", lines2[j]))
+				j++
+			}
 			similarLineCount = 0
-			differences = append(differences, generateDiffLine(lines1[i], lines2[j]))
-			i++
-			j++
 		}
-	}
-
-	// Handle remaining lines in case one file has more lines than the other.
-	for i < len(lines1) {
-		differences = append(differences, generateDiffLine(lines1[i], ""))
-		i++
-	}
-
-	for j < len(lines2) {
-		differences = append(differences, generateDiffLine("", lines2[j]))
-		j++
 	}
 
 	return differences
