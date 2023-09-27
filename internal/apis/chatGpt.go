@@ -52,7 +52,7 @@ type JSONResponse struct {
 // Some globals
 const (
 	API_ENDPOINT    = "https://api.openai.com/v1/chat/completions"
-	MAX_TOKENS      = 250
+	MAX_TOKENS      = 500 // os.Getenv("OPEN_AI_MAX_TOKENS")
 	REQUEST_TIMEOUT = 15 * time.Second
 )
 

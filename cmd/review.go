@@ -14,15 +14,11 @@ package cmd
 import (
 	config "github.com/sanix-darker/prev/internal/config"
 	models "github.com/sanix-darker/prev/internal/models"
+	"github.com/spf13/cobra"
 )
 
-func init() {
-
-	conf := config.NewDefaultConfig()
-	rootCmd.AddCommand(NewBranchCmd(conf), NewCommitCmd(conf))
-
-	// set common flags smartly (repo, paths)
-	for _, cmd := range rootCmd.Commands() {
+func addRepoAndPathFlags(commands []*cobra.Command) {
+	for _, cmd := range commands {
 		for _, fg := range []models.FlagStruct{
 			{
 				Label:        "repo",
@@ -45,6 +41,14 @@ func init() {
 			)
 		}
 	}
+}
+
+func init() {
+	conf := config.NewDefaultConfig()
+	rootCmd.AddCommand(NewBranchCmd(conf), NewCommitCmd(conf))
+
+	// Set common flags smartly (repo, paths)
+	addRepoAndPathFlags(rootCmd.Commands())
 
 	// diff and optim commands
 	rootCmd.AddCommand(NewDiffCmd(conf), NewOptimizeCmd(conf))

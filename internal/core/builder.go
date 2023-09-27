@@ -26,7 +26,7 @@ func BuildOptimPrompt(
 
 	prompt := fmt.Sprintf(`
 You're a given this snippet of code, give an optimal rewrite of it,
-keep it simple, readable and still working.
+keep it simple and optimized, better.
 %s
 No need to provide comments, or explanations, just provide the code with a suggestion title.
 Respond in a Markdown format styling.
@@ -114,11 +114,6 @@ func BuildDiff(file1, file2 string) ([]string, error) {
 
 	i, j := 0, 0
 	for i < len(lines_for_file1) && j < len(lines_for_file2) {
-		// this comparison looks better but l
-		// if strings.EqualFold(
-		// 	strings.TrimSpace(lines1[i]),
-		// 	strings.TrimSpace(lines2[j]),
-		// ) {
 		if lines_for_file1[i] == lines_for_file2[j] {
 			similarLineCount++
 			if i == 0 || i == len(lines_for_file1) {
