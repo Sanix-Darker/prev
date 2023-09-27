@@ -42,7 +42,6 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 			// TODO: add this inside another util that will need a config param
 			// to chose the handler directly here, we should not use chatGPT from
 			// here, this will help doing more funcionnal programming.
-
 			apis.ApiCall(
 				conf,
 				prompt,

@@ -1,8 +1,8 @@
-/*
-Copyright © 2023 sanix-darker <s4nixd@gmail.com>
+// /*
+// Copyright © 2023 sanix-darker <s4nixd@gmail.com>
 
-Licensed under Apache 2.0 License.
-*/
+// Licensed under Apache 2.0 License.
+// */
 package main
 
 import (

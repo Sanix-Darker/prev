@@ -65,7 +65,9 @@ then choose what is the best approach, then review what have beend added :
 %s
 
 Respect those rules :
+- Post the code only once, don't repeat yourself.
 - Respond in a Markdown format styling.
+- + and - are adds and deletions
 %s
 - Give a better approash to prevent regressions, add optimisations.
 - Keep it Simple, compact and clear.
