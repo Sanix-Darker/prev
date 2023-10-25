@@ -58,15 +58,15 @@ const (
 
 var (
 	RESTY_CLIENT = resty.New().SetTimeout(REQUEST_TIMEOUT)
-	API_KEY      = os.Getenv("OPEN_AI")       // "" // need to fix this letter os.Getenv("OPEN_AI")
-	GPT_MODEL    = os.Getenv("OPEN_AI_MODEL") // gpt-3.5-turbo
+	API_KEY      = os.Getenv("OPENAI_API_KEY")
+	GPT_MODEL    = os.Getenv("OPENAI_API_MODEL") // gpt-3.5-turbo
 )
 
 // ReqBuilder the request builder with all necessary stuffs
 func ReqBuilder() *resty.Request {
 	if len(API_KEY) == 0 {
 		common.LogError(
-			"No API-KEY set for chatGPT client !",
+			"No OPEN_API_KEY set for chatGPT client !",
 			true,
 			false,
 			nil,

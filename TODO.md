@@ -4,6 +4,8 @@
 
 ## TODO or ROADMAD (choose)
 
+-> common maaaann https://github.com/sashabaranov/go-openai
+
 - implement the streaming mode of prev
     - for chatGPT..
 
@@ -73,9 +75,9 @@
 
 - [ ] for branch diff, allow these formats branch1:branch2 or if it's only branch provided, check with the master (or the main branch available ? maybe the golang git API have that ? Need to check...).
 
-- [ ] Make it a product paid $1/MONTH and 10$/YEAR (not sure for this).
-- [ ] write a gihub action that use the CLI to evaluate a Pull request.
-- [ ] write a nvim plugin that use the CLI to evaluate code input and give
+- [ ] Make it a product paid $1/MONTH and 10$/YEAR and then (0.00001$ per request) (not sure for this).
+- [ ] Write a gihub action that use the CLI to evaluate a Pull request.
+- [ ] Write a nvim plugin that use the CLI to evaluate code input and give
   suggestions about it.
 
 -> [ ] For a quick access, make a small web app with a form just to get a valid repository and then
