@@ -14,11 +14,20 @@ func ExtractDiffHandler(
 	inputString string,
 	helper func() error,
 ) (string, error) {
-
+	inputString = strings.Replace(inputString, " ", "", 1)
 	inputParts := strings.Split(inputString, ",")
+
 	if len(inputParts) < 2 {
 		common.LogError(
 			"[x] Please provide two files seperated by a comma.",
+			true,
+			true,
+			helper,
+		)
+	}
+	if inputParts[0] == inputParts[1] {
+		common.LogError(
+			"[x] Provided files should be differents.",
 			true,
 			true,
 			helper,
