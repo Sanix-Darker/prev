@@ -58,15 +58,15 @@ const (
 
 var (
 	RESTY_CLIENT = resty.New().SetTimeout(REQUEST_TIMEOUT)
-	API_KEY      = os.Getenv("OPEN_AI")       // "" // need to fix this letter os.Getenv("OPEN_AI")
-	GPT_MODEL    = os.Getenv("OPEN_AI_MODEL") // gpt-3.5-turbo
+	API_KEY      = os.Getenv("OPENAI_API_KEY")
+	GPT_MODEL    = os.Getenv("OPENAI_API_MODEL") // gpt-3.5-turbo
 )
 
 // ReqBuilder the request builder with all necessary stuffs
 func ReqBuilder() *resty.Request {
 	if len(API_KEY) == 0 {
 		common.LogError(
-			"No API-KEY set for chatGPT client !",
+			"No OPEN_API_KEY set for chatGPT client !",
 			true,
 			false,
 			nil,
@@ -82,13 +82,17 @@ func ReqBuilder() *resty.Request {
 }
 
 // Handler
-func ChatGptHandler(systemPrompt string, questionPrompt string) (string, []string, error) {
+func ChatGptHandler(systemPrompt string, assistantPrompt string, questionPrompt string) (string, []string, error) {
 	response, err := ReqBuilder().SetBody(RequestReq{
 		Model: GPT_MODEL,
 		Messages: []MessageReq{
 			{
 				Role:    "system",
 				Content: systemPrompt,
+			},
+			{
+				Role:    "assistant",
+				Content: assistantPrompt,
 			},
 			{
 				Role:    "user",
@@ -125,6 +129,31 @@ func ChatGptHandler(systemPrompt string, questionPrompt string) (string, []strin
 	for _, choice := range jsonResponse.Choices {
 		responseChoices = append(responseChoices, choice.Message.Content)
 	}
+
+	// TODO: implement the streaming mode, should add a new param to this function
+	// and then make completion when it' set
+	// // Create a channel to handle response streaming
+	// 	stream := make(chan string)
+
+	// 	// Goroutine to handle response streaming
+	// 	go func() {
+	// 		defer close(stream)
+	// 		buf := new(bytes.Buffer)
+	// 		_, _ = io.Copy(buf, resp.RawBody())
+	// 		responseText := buf.String()
+	// 		// Split the response into individual messages (each ending with '\n')
+	// 		messages := strings.Split(responseText, "\n")
+	// 		for _, msg := range messages {
+	// 			if msg != "" {
+	// 				stream <- msg
+	// 			}
+	// 		}
+	// 	}()
+
+	// 	// Loop to process and print the streaming responses
+	// 	for message := range stream {
+	// 		fmt.Println("Response:", message)
+	// 	}
 
 	return responseId, responseChoices, nil
 }

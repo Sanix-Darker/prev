@@ -11,10 +11,14 @@ import (
 func ApiCall(
 	conf config.Config,
 	prompt string,
-	callback func(string, string) (string, []string, error),
+	callback func(string, string, string) (string, []string, error),
 ) {
 
-	chatId, responses, err := callback("You're a software engineer", prompt)
+	chatId, responses, err := callback(
+		"You are a helpful assistant and source code reviewer.",
+		"You are code reviewer for a project",
+		prompt,
+	)
 	if err != nil {
 		common.LogError(err.Error(), true, false, nil)
 	}
