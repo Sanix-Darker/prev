@@ -129,6 +129,7 @@ nfpms:
 
 publishers:
   - name: fury.io
+    disable: "{{ if not .Env.FURY_TOKEN }}true{{ end }}"
     ids:
       - packages
     env:
