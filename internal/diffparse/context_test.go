@@ -197,6 +197,101 @@ func TestEnrich_DeletedFile(t *testing.T) {
 	assert.Equal(t, "python", enriched[0].Language)
 }
 
+func TestEnrichFileChanges_TokenBudgetExceeded(t *testing.T) {
+	repoPath, baseBranch, targetBranch := setupTestRepo(t)
+
+	changes := []FileChange{
+		{
+			OldName: "main.go",
+			NewName: "main.go",
+			Hunks: []Hunk{
+				{
+					NewStart: 6,
+					NewLines: 1,
+					OldStart: 6,
+					OldLines: 1,
+					Lines: []DiffLine{
+						{Type: LineDeleted, Content: `	fmt.Println("hello")`, OldLineNo: 6},
+						{Type: LineAdded, Content: `	fmt.Println("hello world!")`, NewLineNo: 6},
+					},
+				},
+			},
+			Stats: DiffStats{Additions: 1, Deletions: 1},
+		},
+	}
+
+	// Use a very small token budget to trigger the contextLines=3 fallback
+	enriched, err := EnrichFileChanges(changes, repoPath, baseBranch, targetBranch, 10, 1, nil)
+	require.NoError(t, err)
+	require.Len(t, enriched, 1)
+
+	// Should still have enriched hunks, just with reduced context (3 lines)
+	assert.NotEmpty(t, enriched[0].EnrichedHunks)
+}
+
+func TestEnrichHunks_EmptyInput(t *testing.T) {
+	// nil hunks
+	result := enrichHunks(nil, []string{"line1"}, 3)
+	assert.Nil(t, result)
+
+	// nil lines
+	result = enrichHunks([]Hunk{{NewStart: 1, NewLines: 1}}, nil, 3)
+	assert.Nil(t, result)
+
+	// empty hunks
+	result = enrichHunks([]Hunk{}, []string{"line1"}, 3)
+	assert.Nil(t, result)
+
+	// empty lines
+	result = enrichHunks([]Hunk{{NewStart: 1, NewLines: 1}}, []string{}, 3)
+	assert.Nil(t, result)
+}
+
+func TestEnrichHunks_HunkAtFileStart(t *testing.T) {
+	lines := []string{"line1", "line2", "line3", "line4", "line5"}
+	hunks := []Hunk{
+		{NewStart: 1, NewLines: 1, OldStart: 1, OldLines: 1,
+			Lines: []DiffLine{{Type: LineAdded, Content: "changed", NewLineNo: 1}}},
+	}
+
+	result := enrichHunks(hunks, lines, 3)
+	require.Len(t, result, 1)
+	// No context before since hunk starts at line 1
+	assert.Empty(t, result[0].ContextBefore)
+	assert.Equal(t, 1, result[0].StartLine)
+}
+
+func TestEnrichHunks_HunkAtFileEnd(t *testing.T) {
+	lines := []string{"line1", "line2", "line3", "line4", "line5"}
+	hunks := []Hunk{
+		{NewStart: 5, NewLines: 1, OldStart: 5, OldLines: 1,
+			Lines: []DiffLine{{Type: LineAdded, Content: "changed", NewLineNo: 5}}},
+	}
+
+	result := enrichHunks(hunks, lines, 3)
+	require.Len(t, result, 1)
+	// No context after since hunk is at last line
+	assert.Empty(t, result[0].ContextAfter)
+	assert.Equal(t, len(lines), result[0].EndLine)
+}
+
+func TestEnrichFileChanges_BinaryFile(t *testing.T) {
+	changes := []FileChange{
+		{
+			NewName:  "image.png",
+			IsBinary: true,
+			Stats:    DiffStats{},
+		},
+	}
+
+	enriched, err := EnrichFileChanges(changes, "/nonexistent", "main", "feature", 3, 80000, nil)
+	require.NoError(t, err)
+	require.Len(t, enriched, 1)
+	assert.True(t, enriched[0].IsBinary)
+	assert.Equal(t, 100, enriched[0].TokenEstimate)
+	assert.Empty(t, enriched[0].EnrichedHunks)
+}
+
 func TestDetectLanguage(t *testing.T) {
 	tests := []struct {
 		path string

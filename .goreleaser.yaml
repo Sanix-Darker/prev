@@ -68,7 +68,7 @@ brews:
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     goarm: "7"
     homepage: https://github.com/sanix-darker/prev
-    description: A Golang cli template.
+    description: AI-powered code review CLI tool
     license: Apache 2.0
     test: |
       system "#{bin}/prev version"
@@ -86,7 +86,7 @@ nfpms:
   - file_name_template: "{{ .ConventionalFileName }}"
     id: packages
     homepage: https://github.com/sanix-darker/prev
-    description: A Golang cli template.
+    description: AI-powered code review CLI tool
     maintainer: sanix-darker <s4nixd@gmail.com>
     license: Apache 2.0
     vendor: sanix-darker

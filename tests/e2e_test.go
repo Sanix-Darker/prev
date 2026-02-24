@@ -136,6 +136,89 @@ func TestE2E_MRReviewHelp(t *testing.T) {
 	assert.Contains(t, stdout, "--summary-only")
 }
 
+func TestE2E_BranchReview(t *testing.T) {
+	// Create a temp git repo
+	repoDir, err := os.MkdirTemp("", "prev-e2e-branch-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(repoDir)
+
+	gitRun := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", repoDir}, args...)...)
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=Test",
+			"GIT_AUTHOR_EMAIL=test@test.com",
+			"GIT_COMMITTER_NAME=Test",
+			"GIT_COMMITTER_EMAIL=test@test.com",
+		)
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, "git %v failed: %s", args, string(out))
+	}
+
+	gitRun("init", "-b", "main")
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "app.go"),
+		[]byte("package main\n\nfunc main() {}\n"), 0644))
+	gitRun("add", ".")
+	gitRun("commit", "-m", "initial")
+
+	gitRun("checkout", "-b", "feature")
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "app.go"),
+		[]byte("package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println(\"hello\") }\n"), 0644))
+	gitRun("add", ".")
+	gitRun("commit", "-m", "add greeting")
+	gitRun("checkout", "main")
+
+	// Mock OpenAI server that returns different responses per call
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		var content string
+		if callCount == 1 {
+			content = "## Summary\nThis branch adds a greeting.\n\n## Changes\n| File | Type | Summary |\n|------|------|---------|\n| app.go | Modified | Added hello output |\n"
+		} else {
+			content = "**app.go:5** [MEDIUM]: Consider using log instead of fmt for production.\n"
+		}
+		resp := map[string]interface{}{
+			"id":    "chatcmpl-test",
+			"model": "gpt-4o",
+			"choices": []map[string]interface{}{
+				{
+					"index": 0,
+					"message": map[string]interface{}{
+						"role":    "assistant",
+						"content": content,
+					},
+					"finish_reason": "stop",
+				},
+			},
+			"usage": map[string]interface{}{
+				"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150,
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	cmd := exec.Command(binaryPath, "branch", "feature",
+		"--repo", repoDir,
+		"--legacy=false",
+		"--serena=off",
+		"--stream=false",
+	)
+	cmd.Env = append(os.Environ(),
+		"OPENAI_API_KEY=test-key",
+		"OPENAI_API_BASE="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	output := string(out)
+
+	require.NoError(t, err, "output: %s", output)
+	assert.Contains(t, output, "Branch Review")
+	assert.Contains(t, output, "Walkthrough")
+	assert.Contains(t, output, "Statistics")
+}
+
 func TestE2E_BranchHelp(t *testing.T) {
 	stdout, _, exitCode := runPrev(t, "branch", "--help")
 	assert.Equal(t, 0, exitCode)

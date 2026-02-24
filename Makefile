@@ -1,7 +1,7 @@
 BIN_NAME=prev
 IMAGE_NAME=sanix-darker/${BIN_NAME}
 BIN_PATH=${GOPATH}/bin
-GO_VERSION=1.21
+GO_VERSION=1.24
 
 default: help
 
