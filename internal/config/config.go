@@ -13,22 +13,29 @@ import (
 const (
 	HomePath              = "$HOME"
 	ConfigDirPath         = HomePath + "/.config/prev"
-	ConfigFilePah         = ConfigDirPath + "/config.yml"
+	ConfigFilePath         = ConfigDirPath + "/config.yml"
 	ConversationCachePath = HomePath + "/.prev_cache"
 )
 
 // Config contains the entire cli dependencies
 type Config struct {
 	Version                    string
-	Viper                      viper.Viper
+	Viper                      *viper.Viper
 	ConfigDirPath              string
-	ConfigFilePah              string
+	ConfigFilePath             string
 	ConfigCachePath            string
 	ConfigCachePathFileHistory string
 	Debug                      bool
 	MaxKeyPoints               int8
 	MaxCharactersPerKeyPoints  int16
 	ExplainItOrNot             bool
+	Provider                   string
+	Model                      string
+	Stream                     bool
+	Strictness                 string
+	ContextLines               int
+	MaxBatchTokens             int
+	SerenaMode                 string
 	Spin                       printers.ISpinner
 	Printers                   printers.IPrinters
 
@@ -44,13 +51,19 @@ func NewDefaultConfig() Config {
 		Spin:                       printers.NewSpinner(),
 		Printers:                   printers.NewPrinters(),
 		ConfigDirPath:              ".config/prev",
-		ConfigFilePah:              "config.yml",
+		ConfigFilePath:             "config.yml",
 		ConfigCachePath:            ".prev_cache",
 		ConfigCachePathFileHistory: "history",
-		Debug:                      true,
+		Debug:                      false,
 		MaxKeyPoints:               3,
 		MaxCharactersPerKeyPoints:  100,
-		ExplainItOrNot:             false, // either we want prev to add in the prompt to explain it or not
+		ExplainItOrNot:             false,
+		Provider:                   "openai",
+		Stream:                     true,
+		Strictness:                 "normal",
+		ContextLines:               10,
+		MaxBatchTokens:             80000,
+		SerenaMode:                 "auto",
 		InReader:                   os.Stdin,
 		OutWriter:                  os.Stdout,
 		ErrWriter:                  os.Stderr,
@@ -60,23 +73,23 @@ func NewDefaultConfig() Config {
 	return conf
 }
 
-func setupViper(conf Config) viper.Viper {
+func setupViper(conf Config) *viper.Viper {
 	v := viper.New()
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
 
 	dir, err := GetConfigDirPath(conf)
 	if err != nil {
-		return viper.Viper{}
+		return v
 	}
 
 	v.AddConfigPath(dir)
-	err = v.ReadInConfig()
-	if err != nil {
-		return viper.Viper{}
+	if err := v.ReadInConfig(); err != nil {
+		// Config file not found is OK, we use defaults
+		return v
 	}
 
-	return *v
+	return v
 }
 
 // GetConfigFilePath get the store file path from config
@@ -86,7 +99,7 @@ func GetConfigFilePath(conf Config) (string, error) {
 		return "", fmt.Errorf("failed to read home directory: %s", err)
 	}
 
-	path := fmt.Sprintf("%s/%s/%s", home, conf.ConfigDirPath, conf.ConfigFilePah)
+	path := fmt.Sprintf("%s/%s/%s", home, conf.ConfigDirPath, conf.ConfigFilePath)
 	return path, nil
 }
 

@@ -19,7 +19,7 @@ func ExtractDiffHandler(
 
 	if len(inputParts) < 2 {
 		common.LogError(
-			"[x] Please provide two files seperated by a comma.",
+			"[x] Please provide two files separated by a comma.",
 			true,
 			true,
 			helper,
@@ -27,7 +27,7 @@ func ExtractDiffHandler(
 	}
 	if inputParts[0] == inputParts[1] {
 		common.LogError(
-			"[x] Provided files should be differents.",
+			"[x] Provided files should be different.",
 			true,
 			true,
 			helper,

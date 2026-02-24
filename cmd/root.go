@@ -1,8 +1,3 @@
-/*
-Copyright © 2023 sanix-darker <s4nixd@gmail.com>
-
-*/
-
 package cmd
 
 import (
@@ -15,12 +10,10 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "prev",
 	Short: "A CodeReviewer cli friend in your terminal.",
-	Long:  `Get code reviews from AI for any kind of changes (diff, commit, branch).`,
-	// Run: func(cmd *cobra.Command, args []string) { },
+	Long:  `Get code reviews from AI for any kind of changes (diff, commit, branch, merge request).`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -29,8 +22,9 @@ func Execute() {
 }
 
 func init() {
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.test.yaml)")
-
-	// for a sub-command flag.
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.PersistentFlags().StringP("provider", "P", "", "AI provider to use (openai, anthropic, azure, ollama, etc.)")
+	rootCmd.PersistentFlags().StringP("model", "m", "", "Model to use for the AI provider")
+	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug output")
+	rootCmd.PersistentFlags().BoolP("stream", "s", true, "Enable streaming output (default: true)")
+	rootCmd.PersistentFlags().String("strictness", "", "Review strictness: strict, normal, lenient (default: normal)")
 }

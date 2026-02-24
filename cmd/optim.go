@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/sanix-darker/prev/internal/apis"
 	common "github.com/sanix-darker/prev/internal/common"
 	config "github.com/sanix-darker/prev/internal/config"
 	handlers "github.com/sanix-darker/prev/internal/handlers"
@@ -16,8 +15,9 @@ func NewOptimizeCmd(conf config.Config) *cobra.Command {
 		Short:   "optimize any given code or snippet.",
 		Example: "prev optim code_ok.py \nprev optim # will take the input code from your clipboard",
 		Run: func(cmd *cobra.Command, args []string) {
+			applyFlags(cmd, &conf)
 
-			prompt, err := handlers.ExtractOptimtHandler(
+			prompt, err := handlers.ExtractOptimHandler(
 				conf,
 				args,
 				cmd.Help,
@@ -31,14 +31,7 @@ func NewOptimizeCmd(conf config.Config) *cobra.Command {
 				common.LogInfo(prompt, nil)
 			}
 
-			// TODO: add this inside another util that will need a config param
-			// to chose the handler directly here, we should not use chatGPT from
-			// here, this will help doing more funcionnal programming.
-			apis.ApiCall(
-				conf,
-				prompt,
-				apis.ChatGptHandler, // TODO: again this should depend on the prev use command
-			)
+			callProvider(conf, prompt)
 		},
 	}
 

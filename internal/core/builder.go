@@ -3,7 +3,6 @@ package core
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -60,7 +59,7 @@ func BuildReviewPrompt(
 
 	prompt := fmt.Sprintf(`
 Given + and - in this code, First, try to understand what's it about,
-then choose what is the best approach, then review what have beend added :
+then choose what is the best approach, then review what has been added:
 
 %s
 
@@ -69,7 +68,7 @@ Respect those rules :
 - Respond in a Markdown format styling.
 - + and - are adds and deletions
 %s
-- Give a better approash to prevent regressions, add optimisations.
+- Give a better approach to prevent regressions, add optimizations.
 - Keep it Simple, compact and clear.
 - Try to respect DRY, SOLID principles while reviewing.
 - Provide the best optimized suggestion at the end.
@@ -107,13 +106,13 @@ func cleanDiffLine(formating string, line string) string {
 func BuildDiff(filePath1, filePath2 string) (string, error) {
 
 	// Read the contents of the first file
-	content1, err := ioutil.ReadFile(filePath1)
+	content1, err := os.ReadFile(filePath1)
 	if err != nil {
 		return "", err
 	}
 
 	// Read the contents of the second file
-	content2, err := ioutil.ReadFile(filePath2)
+	content2, err := os.ReadFile(filePath2)
 	if err != nil {
 		return "", err
 	}

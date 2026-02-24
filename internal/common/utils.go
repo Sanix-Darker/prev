@@ -21,13 +21,13 @@ func LogError(
 	help_menu bool,
 	help_callback func() error,
 ) {
-	fmt.Printf(message + "\n")
+	fmt.Fprintf(os.Stderr, "%s\n", message)
 
 	if critic {
 		if help_menu {
 			help_callback()
 		}
-		os.Exit(0)
+		os.Exit(1)
 	}
 }
 
@@ -36,7 +36,7 @@ func LogInfo(
 	message string,
 	callback func(),
 ) {
-	fmt.Printf(message + "\n")
+	fmt.Printf("%s\n", message)
 
 	// for a given callback
 	if callback != nil {
@@ -80,7 +80,7 @@ func GetRepoPathAndTargetPath(cmdFlags *pflag.FlagSet, help func() error) (strin
 func CheckArgs(keycommand string, args []string, help func() error) {
 	if len(args) == 0 {
 		help()
-		os.Exit(0)
+		os.Exit(1)
 	}
 }
 
