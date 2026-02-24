@@ -18,10 +18,10 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - run: go generate ./...
+
       - run: go vet ./...
 
-      - run: |
-          go generate ./...
-          go build -o /dev/null
+      - run: go build -o /dev/null
 
       - run: go test ./... -race -count=1
