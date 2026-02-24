@@ -64,7 +64,7 @@ archives:
       - manpages/*
 
 brews:
-  - tap:
+  - repository:
       owner: sanix-darker
       name: homebrew-tap
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
