@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.20
+ARG GO_VERSION=1.24
 
 # Build stage
 FROM golang:${GO_VERSION} AS builder
@@ -6,14 +6,14 @@ FROM golang:${GO_VERSION} AS builder
 ARG GIT_COMMIT
 ARG VERSION
 
-ENV GO111MODULE=auto
+ENV GO111MODULE=on
 ENV CGO_ENABLED=0
 
 WORKDIR $GOPATH/src/github.com/sanix-darker/prev
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN make go/build
+RUN go generate ./... && go build -o /go/bin/prev
 RUN echo "nonroot:x:65534:65534:Non root:/:" > /etc_passwd
 
 

@@ -9,14 +9,14 @@ import (
 	core "github.com/sanix-darker/prev/internal/core"
 )
 
-func ExtractOptimtHandler(
+func ExtractOptimHandler(
 	conf config.Config,
 	args []string,
 	help func() error,
 ) (string, error) {
 	if len(args) == 0 {
 		// if no arguments, we get from clipboard
-		clipValue, err := common.GetClipbaordValue()
+		clipValue, err := common.GetClipboardValue()
 
 		return core.BuildOptimPrompt(conf, clipValue), err
 	} else {

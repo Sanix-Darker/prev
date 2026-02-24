@@ -1,7 +1,7 @@
 BIN_NAME=prev
 IMAGE_NAME=sanix-darker/${BIN_NAME}
 BIN_PATH=${GOPATH}/bin
-GO_VERSION=1.20
+GO_VERSION=1.24
 
 default: help
 
@@ -11,12 +11,18 @@ local-deps:
 	go install github.com/spf13/cobra-cli@v1.3.0
 	go install github.com/goreleaser/goreleaser@latest
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
-	python3 -m pip install -r docs/requirements.txt
 
 ## Locally run the golang test.
 test:
-	golangci-lint run ./...
 	go test ./...
+
+## Run unit tests with verbose output.
+test-unit:
+	go test ./internal/... -v -count=1
+
+## Run e2e tests.
+test-e2e:
+	go test ./tests/... -tags=e2e -v -count=1
 
 ## Build locally the go project.
 build:

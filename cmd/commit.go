@@ -13,12 +13,12 @@ import (
 
 // NewCommitCmd for a given repo and commit hash, will provide a review from it
 func NewCommitCmd(conf config.Config) *cobra.Command {
-	// commitCmd represents the commit for the command
 	commitCmd := &cobra.Command{
 		Use:     "commit <commitHash> [--repo] [-p --path]...",
 		Short:   "Select a commit from a .git repo (local or remote)",
 		Example: "prev commit 44rtff55g --repo /path/to/git/project\nprev commit 867abbeef --repo /path/to/git/project -p app/main.py,tests/",
 		Run: func(cmd *cobra.Command, args []string) {
+			applyFlags(cmd, &conf)
 			common.CheckArgs("commit", args, cmd.Help)
 
 			commitHash, repoPath, gitPath := common.ExtractTargetRepoAndGitPath(
@@ -47,6 +47,8 @@ func NewCommitCmd(conf config.Config) *cobra.Command {
 			if conf.Debug {
 				common.LogInfo(prompt, nil)
 			}
+
+			callProvider(conf, prompt)
 		},
 	}
 

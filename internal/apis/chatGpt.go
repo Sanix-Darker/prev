@@ -52,8 +52,8 @@ type JSONResponse struct {
 // Some globals
 const (
 	API_ENDPOINT    = "https://api.openai.com/v1/chat/completions"
-	MAX_TOKENS      = 500 // os.Getenv("OPEN_AI_MAX_TOKENS")
-	REQUEST_TIMEOUT = 15 * time.Second
+	MAX_TOKENS      = 4096
+	REQUEST_TIMEOUT = 120 * time.Second
 )
 
 var (
@@ -66,7 +66,7 @@ var (
 func ReqBuilder() *resty.Request {
 	if len(API_KEY) == 0 {
 		common.LogError(
-			"No OPEN_API_KEY set for chatGPT client !",
+			"No OPENAI_API_KEY set for chatGPT client!",
 			true,
 			false,
 			nil,
@@ -104,11 +104,12 @@ func ChatGptHandler(systemPrompt string, assistantPrompt string, questionPrompt 
 
 	if err != nil {
 		common.LogError(
-			fmt.Sprintf("Error while sending send the request: %v", err),
+			fmt.Sprintf("Error while sending the request: %v", err),
 			true,
 			false,
 			nil,
 		)
+		return "", nil, err
 	}
 
 	jsonData := response.Body()

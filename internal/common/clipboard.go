@@ -8,7 +8,7 @@ func SetClipboardValue(value string) error {
 	return clipboard.WriteAll(value)
 }
 
-func GetClipbaordValue() (string, error) {
+func GetClipboardValue() (string, error) {
 	value, err := clipboard.ReadAll()
 
 	if err != nil {

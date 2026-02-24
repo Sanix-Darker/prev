@@ -1,6 +1,10 @@
 name: ci
 
-on: [push]
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
   build:
@@ -8,26 +12,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - name: Install Make
-        run: |
-          sudo apt-get update
-          sudo apt-get install make
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '>=1.20'
+          go-version-file: go.mod
 
-      - name: Build and Test
-        run: |
-          make build
-          # make test
+      - run: go generate ./...
 
-      # - name: Publish Artifacts
-      #   uses: actions/upload-artifact@v2
-      #   with:
-      #     name: my-cli-app
-      #     path: my-cli-app
+      - run: go vet ./...
+
+      - run: go build -o /dev/null
+
+      - run: go test ./... -race -count=1
