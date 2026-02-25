@@ -312,6 +312,19 @@ func newMRReviewCmd() *cobra.Command {
 				if replyCount > 0 {
 					fmt.Printf("Posted %d thread replies.\n", replyCount)
 				}
+				noteReplyCount := processNoteReplyCommands(
+					vcsProvider,
+					p,
+					projectID,
+					mrIID,
+					notes,
+					review.MR,
+					validPositionsByFile,
+					mentionHandle,
+				)
+				if noteReplyCount > 0 {
+					fmt.Printf("Posted %d top-level replies.\n", noteReplyCount)
+				}
 			}
 
 			reviewContent, err := runReviewPasses(p, review.Prompt, reviewPasses)
@@ -999,8 +1012,107 @@ func buildThreadReplyPrompt(d vcs.MRDiscussion, hunk string) string {
 	}
 	return "Thread conversation:\n" + strings.Join(convo, "\n") + "\n\n" +
 		"Hunk context (use this before answering):\n" + hunk + "\n\n" +
-		"Task: Reply to the latest @mention reply request in this thread. " +
+		"Task: Reply to the latest @mention in this thread. " +
 		"Be concise, technical, and address impact/risk first."
+}
+
+func processNoteReplyCommands(
+	vcsProvider vcs.VCSProvider,
+	ai provider.AIProvider,
+	projectID string,
+	mrIID int64,
+	notes []vcs.MRNote,
+	mr *vcs.MergeRequest,
+	validPositionsByFile map[string]inlinePositions,
+	mentionHandle string,
+) int {
+	if strings.TrimSpace(mentionHandle) == "" {
+		return 0
+	}
+	posted := 0
+	path, newLine, oldLine, hasAnchor := pickInlineAnchor(validPositionsByFile)
+	for i := range notes {
+		note := notes[i]
+		if isBotAuthor(note.Author, mentionHandle) {
+			continue
+		}
+		if !isReplyRequest(note.Body, mentionHandle) {
+			continue
+		}
+		if hasNoteMarkerAfter(notes, i, prevReplyMarker) {
+			continue
+		}
+		if !hasAnchor {
+			fmt.Fprintf(os.Stderr, "Warning: no inline anchor available to reply to top-level note %d\n", note.ID)
+			continue
+		}
+		prompt := buildNoteReplyPrompt(note, mr)
+		_, choices, err := provider.SimpleComplete(
+			ai,
+			"You are an expert code reviewer replying to a merge request comment.",
+			"Answer questions directly and concisely, referencing the MR context when helpful.",
+			prompt,
+		)
+		if err != nil || len(choices) == 0 || strings.TrimSpace(choices[0]) == "" {
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to generate reply for note %d: %v\n", note.ID, err)
+			}
+			continue
+		}
+		body := strings.TrimSpace(choices[0]) + "\n\n" + prevReplyMarker
+		if mr == nil || mr.DiffRefs.HeadSHA == "" || mr.DiffRefs.BaseSHA == "" {
+			fmt.Fprintf(os.Stderr, "Warning: missing diff refs; cannot post inline reply for note %d\n", note.ID)
+			continue
+		}
+		if err := vcsProvider.PostInlineComment(projectID, mrIID, mr.DiffRefs, vcs.InlineComment{
+			FilePath: path,
+			NewLine:  int64(newLine),
+			OldLine:  int64(oldLine),
+			Body:     body,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to post inline reply: %v\n", err)
+			continue
+		}
+		posted++
+	}
+	return posted
+}
+
+func buildNoteReplyPrompt(note vcs.MRNote, mr *vcs.MergeRequest) string {
+	var sb strings.Builder
+	if mr != nil {
+		sb.WriteString(fmt.Sprintf("Merge request: %s\n", strings.TrimSpace(mr.Title)))
+		if strings.TrimSpace(mr.Description) != "" {
+			sb.WriteString("Description:\n")
+			sb.WriteString(strings.TrimSpace(mr.Description))
+			sb.WriteString("\n")
+		}
+	}
+	sb.WriteString("\nComment:\n")
+	sb.WriteString(strings.TrimSpace(note.Body))
+	sb.WriteString("\n\nTask: Reply to the latest @mention in this comment.")
+	return sb.String()
+}
+
+func pickInlineAnchor(validPositionsByFile map[string]inlinePositions) (string, int, int, bool) {
+	if len(validPositionsByFile) == 0 {
+		return "", 0, 0, false
+	}
+	paths := make([]string, 0, len(validPositionsByFile))
+	for path := range validPositionsByFile {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		line, ok := fallbackInlineLine(validPositionsByFile, path)
+		if !ok || line <= 0 {
+			continue
+		}
+		fp := validPositionsByFile[path]
+		oldLine := fp.oldByNew[line]
+		return path, line, oldLine, true
+	}
+	return "", 0, 0, false
 }
 
 func extractHunkContext(changes []diffparse.FileChange, filePath string, line int) string {
@@ -1110,6 +1222,16 @@ func hasMarkerAfter(notes []vcs.MRDiscussionNote, idx int, marker string) bool {
 	return false
 }
 
+func hasNoteMarkerAfter(notes []vcs.MRNote, idx int, marker string) bool {
+	marker = strings.ToLower(marker)
+	for i := idx + 1; i < len(notes); i++ {
+		if strings.Contains(strings.ToLower(notes[i].Body), marker) {
+			return true
+		}
+	}
+	return false
+}
+
 func hasMentionCommand(body, mentionHandle, command string) bool {
 	body = strings.ToLower(body)
 	handle := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(mentionHandle), "@"))
@@ -1124,6 +1246,12 @@ func isReplyRequest(body, mentionHandle string) bool {
 	if hasMentionCommand(body, mentionHandle, "reply") {
 		return true
 	}
+	if hasMentionCommand(body, mentionHandle, "pause") ||
+		hasMentionCommand(body, mentionHandle, "resume") ||
+		hasMentionCommand(body, mentionHandle, "review") ||
+		hasMentionCommand(body, mentionHandle, "summary") {
+		return false
+	}
 	handle := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(mentionHandle), "@"))
 	if handle == "" {
 		return false
@@ -1134,7 +1262,16 @@ func isReplyRequest(body, mentionHandle string) bool {
 	if !hasMention {
 		return false
 	}
-	return strings.Contains(b, "?")
+	return true
+}
+
+func isBotAuthor(author, mentionHandle string) bool {
+	author = strings.TrimSpace(strings.ToLower(author))
+	handle := strings.TrimSpace(strings.ToLower(strings.TrimPrefix(mentionHandle, "@")))
+	if author == "" || handle == "" {
+		return false
+	}
+	return author == handle
 }
 
 func isMRPaused(notes []vcs.MRNote, mentionHandle string) bool {
