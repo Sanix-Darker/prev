@@ -35,7 +35,7 @@ func NewProvider(token, baseURL string) (vcs.VCSProvider, error) {
 	}
 
 	return &Provider{
-		client: &http.Client{Timeout: 30 * time.Second},
+		client:  &http.Client{Timeout: 30 * time.Second},
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   token,
 	}, nil
@@ -68,7 +68,7 @@ func (p *Provider) FetchMR(projectID string, mrIID int64) (*vcs.MergeRequest, er
 			Ref string `json:"ref"`
 			SHA string `json:"sha"`
 		} `json:"base"`
-		State  string `json:"state"`
+		State   string `json:"state"`
 		HTMLURL string `json:"html_url"`
 	}
 
@@ -138,6 +138,77 @@ func (p *Provider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, 
 	return all, nil
 }
 
+func (p *Provider) FetchMRRawDiff(projectID string, mrIID int64) (string, error) {
+	req, err := p.newRequest(context.Background(), http.MethodGet,
+		fmt.Sprintf("/repos/%s/pulls/%d", projectID, mrIID),
+		nil,
+	)
+	if err != nil {
+		return "", err
+	}
+	// Ask GitHub to return the raw diff.
+	req.Header.Set("Accept", "application/vnd.github.v3.diff")
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("github: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(raw)), nil
+}
+
+func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDiscussion, error) {
+	// GitHub has review comments but no direct thread abstraction like GitLab.
+	// Return empty to avoid misleading thread reuse logic.
+	return []vcs.MRDiscussion{}, nil
+}
+
+func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, error) {
+	type note struct {
+		ID   int64  `json:"id"`
+		Body string `json:"body"`
+		User struct {
+			Login string `json:"login"`
+		} `json:"user"`
+	}
+
+	var out []vcs.MRNote
+	page := 1
+	for {
+		endpoint := fmt.Sprintf("/repos/%s/issues/%d/comments?per_page=100&page=%d", projectID, mrIID, page)
+		var notes []note
+		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &notes)
+		if err != nil {
+			return nil, fmt.Errorf("github: failed to list PR notes: %w", err)
+		}
+
+		for _, n := range notes {
+			out = append(out, vcs.MRNote{
+				ID:     n.ID,
+				Author: n.User.Login,
+				Body:   n.Body,
+			})
+		}
+
+		if !hasNextPage(resp.Header.Get("Link")) {
+			break
+		}
+		page++
+	}
+
+	return out, nil
+}
+
 func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
 	var prs []struct {
 		Number int64  `json:"number"`
@@ -151,7 +222,7 @@ func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
 		Base struct {
 			Ref string `json:"ref"`
 		} `json:"base"`
-		State  string `json:"state"`
+		State   string `json:"state"`
 		HTMLURL string `json:"html_url"`
 	}
 
@@ -211,6 +282,10 @@ func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.Dif
 		return fmt.Errorf("github: failed to post inline comment: %w", err)
 	}
 	return nil
+}
+
+func (p *Provider) ReplyToMRDiscussion(projectID string, mrIID int64, discussionID, body string) error {
+	return fmt.Errorf("github: reply to discussion is not supported")
 }
 
 // FormatSuggestionBlock returns a GitHub-native suggestion code block.
