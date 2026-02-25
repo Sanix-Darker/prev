@@ -11,17 +11,21 @@ Add to your `.gitlab-ci.yml`:
 ```yaml
 code-review:
   stage: review
-  image: golang:1.21
+  image: golang:1.24
   variables:
     PREV_PROVIDER: "openai"
   before_script:
-    - go install github.com/sanix-darker/prev@latest
+    # Pin prev in CI for reproducible builds. Update this tag intentionally.
+    - go install github.com/sanix-darker/prev@v0.0.6
   script:
     - prev mr review $CI_PROJECT_ID $CI_MERGE_REQUEST_IID
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   allow_failure: true
 ```
+
+`prev` currently requires Go `>= 1.24` (see `go.mod`). If your runner uses
+an older Go image, `go install` will fail.
 
 ### Required CI/CD Variables
 

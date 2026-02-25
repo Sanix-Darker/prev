@@ -38,13 +38,14 @@ type apiMessage struct {
 }
 
 type apiRequest struct {
-	Model       string       `json:"model"`
-	Messages    []apiMessage `json:"messages"`
-	MaxTokens   int          `json:"max_tokens,omitempty"`
-	Temperature *float64     `json:"temperature,omitempty"`
-	TopP        *float64     `json:"top_p,omitempty"`
-	Stream      bool         `json:"stream,omitempty"`
-	Stop        []string     `json:"stop,omitempty"`
+	Model               string       `json:"model"`
+	Messages            []apiMessage `json:"messages"`
+	MaxTokens           int          `json:"max_tokens,omitempty"`
+	MaxCompletionTokens int          `json:"max_completion_tokens,omitempty"`
+	Temperature         *float64     `json:"temperature,omitempty"`
+	TopP                *float64     `json:"top_p,omitempty"`
+	Stream              bool         `json:"stream,omitempty"`
+	Stop                []string     `json:"stop,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -133,10 +134,10 @@ func NewProvider(v *viper.Viper) (provider.AIProvider, error) {
 // Info returns provider metadata.
 func (p *Provider) Info() provider.ProviderInfo {
 	return provider.ProviderInfo{
-		Name:             "openai",
-		DisplayName:      "OpenAI",
-		Description:      "OpenAI Chat Completions API (GPT-4o, GPT-4, GPT-3.5-turbo, etc.)",
-		DefaultModel:     "gpt-4o",
+		Name:              "openai",
+		DisplayName:       "OpenAI",
+		Description:       "OpenAI Chat Completions API (GPT-4o, GPT-4, GPT-3.5-turbo, etc.)",
+		DefaultModel:      "gpt-4o",
 		SupportsStreaming: true,
 	}
 }
@@ -194,12 +195,12 @@ func (p *Provider) doComplete(ctx context.Context, req provider.CompletionReques
 	body := apiRequest{
 		Model:       model,
 		Messages:    toAPIMessages(req.Messages),
-		MaxTokens:   maxTok,
 		Temperature: req.Temperature,
 		TopP:        req.TopP,
 		Stream:      false,
 		Stop:        req.StopSequences,
 	}
+	applyTokenParam(&body, model, maxTok)
 
 	resp, err := p.client.R().
 		SetContext(ctx).
@@ -253,12 +254,12 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 		body := apiRequest{
 			Model:       model,
 			Messages:    toAPIMessages(req.Messages),
-			MaxTokens:   maxTok,
 			Temperature: req.Temperature,
 			TopP:        req.TopP,
 			Stream:      true,
 			Stop:        req.StopSequences,
 		}
+		applyTokenParam(&body, model, maxTok)
 
 		bodyBytes, _ := json.Marshal(body)
 
@@ -429,4 +430,22 @@ func classifyHTTPError(providerName string, statusCode int, body []byte) *provid
 	}
 
 	return pe
+}
+
+func applyTokenParam(body *apiRequest, model string, maxTok int) {
+	if body == nil || maxTok <= 0 {
+		return
+	}
+	if usesMaxCompletionTokens(model) {
+		body.MaxCompletionTokens = maxTok
+		body.MaxTokens = 0
+		return
+	}
+	body.MaxTokens = maxTok
+	body.MaxCompletionTokens = 0
+}
+
+func usesMaxCompletionTokens(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	return strings.HasPrefix(m, "gpt-5")
 }

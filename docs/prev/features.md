@@ -18,9 +18,12 @@
 
 - **GitLab and GitHub support**: Auto-detects VCS from environment tokens (`GITLAB_TOKEN` / `GITHUB_TOKEN`)
 - **Inline comments**: Posts file-specific comments with severity levels directly to the MR/PR
+- **Hunk-level consolidation**: Merges multiple findings in the same changed hunk into one inline thread with key points
+- **Thread continuity**: Reuses matching unresolved discussions across pushes instead of opening duplicate threads
 - **Summary notes**: Posts an overall review summary as a merge request note
 - **Severity filtering**: Filters inline comments based on strictness level (strict/normal/lenient)
 - **Dry-run mode**: Preview reviews locally before posting
+- **Thread commands**: `@bot pause`, `@bot resume`, `@bot summary`, `@bot reply`, and `@bot review`
 
 ### AI Provider System
 
@@ -40,6 +43,7 @@
 - **Symbol-level context**: Replaces raw context lines with enclosing function/class bodies via [Serena](https://github.com/oraios/serena) MCP server
 - **Three modes**: `auto` (use if available), `on` (required), `off` (disabled)
 - **Graceful fallback**: In auto mode, falls back to line-based context if Serena is not installed
+- **Runtime visibility**: MR review logs whether Serena is active/fallback and which model/provider are used
 
 ### Configuration System
 
@@ -47,6 +51,7 @@
 - **Per-provider settings**: API keys, models, base URLs, timeouts per provider block
 - **Environment variables**: All settings can be overridden via environment variables
 - **CLI flags**: Runtime overrides for provider, model, streaming, debug
+- **Guideline mapping**: Auto-loads repository rules from `AGENTS.md`, `CLAUDE.md`, `.claude/*.md`, and Copilot instruction files to refine review prompts
 
 ### CI/CD and Tooling
 

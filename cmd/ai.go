@@ -32,7 +32,6 @@ func newAIListCmd() *cobra.Command {
 			fmt.Println("Available providers:")
 			for _, name := range names {
 				v := viper.New()
-				provider.BindProviderEnvDefaults(name, v)
 				p, err := provider.Get(name, v)
 				if err != nil {
 					fmt.Printf("  - %-15s (not configured)\n", name)

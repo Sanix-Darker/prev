@@ -39,9 +39,18 @@ func NewCommitCmd(conf config.Config) *cobra.Command {
 			if err != nil {
 				common.LogError(err.Error(), true, false, nil)
 			}
+			configGuidelines := ""
+			if conf.Viper != nil {
+				configGuidelines = strings.TrimSpace(conf.Viper.GetString("review.guidelines"))
+			}
 			prompt := core.BuildReviewPrompt(
 				conf,
 				strings.Join(d, "\n-----------------------------------------\n"),
+				mergeGuidelines(
+					configGuidelines,
+					repoGuidelineSection(guidelineRootFromRepoPath(repoPath)),
+					commitMessageContextBlock(repoPath, commitHash),
+				),
 			)
 
 			if conf.Debug {

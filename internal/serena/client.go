@@ -57,7 +57,7 @@ var (
 // IsAvailable checks if uvx and Serena are installed. Cached after first check.
 func IsAvailable() bool {
 	availableOnce.Do(func() {
-		cmd := exec.Command("uvx", "--from", "git+https://github.com/oraios/serena", "serena", "--version")
+		cmd := exec.Command("uvx", "--from", "git+https://github.com/oraios/serena", "serena", "--help")
 		err := cmd.Run()
 		availableResult = err == nil
 	})
@@ -74,7 +74,7 @@ func NewClient(mode string) (*Client, error) {
 
 	if !IsAvailable() {
 		if mode == "on" {
-			return nil, fmt.Errorf("serena is required (--serena=on) but not installed; install with: pip install git+https://github.com/oraios/serena")
+			return nil, fmt.Errorf("serena is required (--serena=on) but unavailable; ensure uvx is installed, git is available, and the runner can reach github.com. For CI, install uv/uvx (for GitHub Actions: astral-sh/setup-uv) then run: uvx --from git+https://github.com/oraios/serena serena --help")
 		}
 		// mode == "auto": graceful fallback
 		return nil, nil

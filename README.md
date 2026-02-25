@@ -164,11 +164,22 @@ prev mr review my-project 42 --strictness lenient
 #### Prerequisites
 
 ```bash
-# Install uvx (part of uv)
-pip install uv
+# Install uv (includes uvx)
+python -m pip install --user uv
+# or: curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Serena is fetched automatically via uvx on first use
+uvx --from git+https://github.com/oraios/serena serena --help
 prev branch feature --serena=on
+```
+
+CI runners must install uv/uvx before running commands with `--serena=on`.
+
+GitHub Actions example:
+
+```yaml
+- uses: astral-sh/setup-uv@v6
+- run: uvx --version
 ```
 
 ### MR/PR Reviews
@@ -184,7 +195,6 @@ export GITLAB_URL=https://gitlab.com   # optional, defaults to gitlab.com
 
 # GitHub
 export GITHUB_TOKEN=ghp_xxxx
-export GITHUB_API_URL=https://api.github.com   # optional, for GitHub Enterprise use https://ghe.example.com/api/v3
 
 # Review an MR (prints review to terminal)
 prev mr review my-group/my-project 42 --dry-run
@@ -211,9 +221,53 @@ prev mr review my-group/my-project 42 --strictness strict
 | `--vcs` | VCS provider: `gitlab`, `github` (auto-detected from env) |
 | `--gitlab-token` | GitLab token (or use `GITLAB_TOKEN` env) |
 | `--gitlab-url` | GitLab instance URL (or use `GITLAB_URL` env) |
-| `--github-token` | GitHub token (or use `GITHUB_TOKEN` env) |
-| `--github-url` | GitHub API base URL (or use `GITHUB_API_URL` env) |
 | `--strictness` | Review strictness: `strict`, `normal`, `lenient` |
+| `--max-comments` | Max inline comments to post (0 = unlimited; prioritizes highest severity) |
+| `--review-passes` | Number of AI review passes (0 = config/default `2`) |
+| `--serena` | Serena MCP mode for MR context: `auto`, `on`, `off` |
+| `--context` | Number of surrounding context lines used for MR enrichment |
+| `--max-tokens` | Max token budget used by MR context enrichment |
+
+#### MR Thread Commands
+
+When `review.mention_handle` (or `PREV_MENTION_HANDLE`) is set, MR comments can control bot behavior:
+
+- `@<handle> pause`: pause reviews for the MR/thread
+- `@<handle> resume`: resume paused MR/thread reviews
+- `@<handle> review`: force review processing for that thread
+- `@<handle> summary`: post one top-level summary note (idempotent)
+- `@<handle> reply` or `@<handle> ... ?`: bot posts a thread reply
+
+Inline continuity behavior:
+
+- Finds multiple issues in one changed hunk and posts them as key points in a single inline comment.
+- Reuses matching unresolved discussions on later pushes (reply in-thread) instead of opening duplicate new threads.
+
+### Repository Guidelines Mapping
+
+`prev` can automatically load repository review guidelines and inject them into review prompts so findings align with project conventions.
+
+Auto-discovered files (when present):
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `.claude/*.md` (including `.claude/CLAUDE.md`)
+- `.github/copilot-instructions.md`
+- `.github/instructions/*.md`
+- `.copilot-instructions.md`
+
+This applies to `diff`, `commit`, `branch`, and `mr review`.
+For MR review, `CI_PROJECT_DIR` is used when available (for CI runners).
+
+You can combine this with config-based guidelines (`review.guidelines` in `~/.config/prev/config.yml`).
+
+### Text-Only Review Scope
+
+`prev` reviews text/code changes only. Binary assets are skipped from AI review and inline findings, including formats such as:
+
+- PDFs (`.pdf`)
+- Images (`.png`, `.jpg`, `.gif`, ...)
+- Archives/binaries (`.zip`, `.tar`, `.exe`, `.so`, ...)
 
 ### AI Providers
 

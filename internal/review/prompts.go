@@ -14,6 +14,7 @@ func BuildWalkthroughPrompt(
 	files []CategorizedFile,
 	diffStat string,
 	strictness string,
+	guidelines string,
 ) string {
 	var sb strings.Builder
 
@@ -78,6 +79,11 @@ func BuildWalkthroughPrompt(
 
 	// Instructions
 	sb.WriteString(strictnessInstruction(strictness))
+	if strings.TrimSpace(guidelines) != "" {
+		sb.WriteString("\n")
+		sb.WriteString(guidelines)
+		sb.WriteString("\n")
+	}
 	sb.WriteString(`
 ## Your Task
 
@@ -101,6 +107,7 @@ func BuildFileReviewPrompt(
 	walkthroughSummary string,
 	branchName string,
 	strictness string,
+	guidelines string,
 ) string {
 	var sb strings.Builder
 
@@ -122,6 +129,11 @@ func BuildFileReviewPrompt(
 
 	// Instructions
 	sb.WriteString(strictnessInstruction(strictness))
+	if strings.TrimSpace(guidelines) != "" {
+		sb.WriteString("\n")
+		sb.WriteString(guidelines)
+		sb.WriteString("\n")
+	}
 	sb.WriteString(`
 ## Review Instructions
 
@@ -142,6 +154,18 @@ If a file has no significant issues, write:
 
 Focus on: bugs, security vulnerabilities, race conditions, error handling,
 performance issues, and logic errors. Skip trivial style nits unless strictness is "strict".
+Prioritize source-code files first.
+For text/documentation files (.md/.txt/.rst/.adoc), report typos/spelling/grammar issues only
+unless a critical correctness or security issue is present.
+For each finding, include hunk-level impact analysis in the same comment:
+- Execution impact: what runtime behavior changes at this exact hunk.
+- Call-tree impact: likely upstream callers and downstream callees affected.
+- Cross-file risk: contracts/interfaces/config/schemas that may break.
+- Regression/test risk: which tests should catch this and what gap exists.
+Review every changed line in each hunk and then judge the hunk as a whole (not line-by-line in isolation).
+If Change Intent Context is present (commit subjects/messages), validate findings against it
+and flag mismatches between intended and actual behavior.
+Do not over-engineer suggestions; keep fixes short, concise, and surgical.
 `)
 
 	return sb.String()

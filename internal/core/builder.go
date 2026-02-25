@@ -42,6 +42,7 @@ Respond in a Markdown format styling.
 func BuildReviewPrompt(
 	conf config.Config,
 	changes string,
+	guidelines string,
 ) string {
 
 	explainIt := "No explanations, just your optimal code suggestion."
@@ -57,9 +58,19 @@ func BuildReviewPrompt(
 		`, conf.MaxCharactersPerKeyPoints, conf.MaxKeyPoints)
 	}
 
+	guidelineBlock := ""
+	if strings.TrimSpace(guidelines) != "" {
+		guidelineBlock = fmt.Sprintf(`
+Repository-specific guidelines (follow when applicable):
+%s
+`, guidelines)
+	}
+
 	prompt := fmt.Sprintf(`
 Given + and - in this code, First, try to understand what's it about,
 then choose what is the best approach, then review what has been added:
+
+%s
 
 %s
 
@@ -69,10 +80,21 @@ Respect those rules :
 - + and - are adds and deletions
 %s
 - Give a better approach to prevent regressions, add optimizations.
+- Prioritize source code concerns first.
+- For text/documentation files (.md/.txt/.rst/.adoc), focus on typos/spelling/grammar only
+  unless there is a critical correctness or security problem.
+- For each finding, include impact analysis tied to changed hunks:
+  - runtime behavior impact at the modified lines,
+  - likely upstream callers and downstream callees affected,
+  - cross-file contract/config/schema risks,
+  - regression risk and missing/needed tests.
+- When Change Intent Context is provided (for example commit message), verify findings against it
+  and highlight mismatches between intended and actual behavior.
+- Do not over-engineer suggestions; keep fixes short, concise, and surgical.
 - Keep it Simple, compact and clear.
 - Try to respect DRY, SOLID principles while reviewing.
 - Provide the best optimized suggestion at the end.
-	`, changes, explainIt)
+	`, changes, guidelineBlock, explainIt)
 
 	// this function just build the output string that will be passed to
 	// the selected API for the initial question to be asked.

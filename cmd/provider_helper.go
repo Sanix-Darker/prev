@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/provider"
@@ -33,9 +34,11 @@ func callProvider(conf config.Config, prompt string) {
 		fmt.Fprintf(os.Stderr, "Error resolving provider: %v\n", err)
 		os.Exit(1)
 	}
+	info := p.Info()
+	model := resolvedModelForLog(conf, info.DefaultModel)
+	fmt.Printf("Model: provider=%s model=%s\n", info.Name, model)
 
 	if conf.Debug {
-		info := p.Info()
 		fmt.Fprintf(os.Stderr, "[debug] provider=%s model=%s\n", info.Name, info.DefaultModel)
 	}
 
@@ -69,4 +72,22 @@ func blockingCallProvider(conf config.Config, p provider.AIProvider, prompt stri
 
 func streamCallProvider(conf config.Config, p provider.AIProvider, prompt string) {
 	provider.ApiCallWithProvider(conf.Debug, p, prompt)
+}
+
+func resolvedModelForLog(conf config.Config, fallback string) string {
+	if strings.TrimSpace(conf.Model) != "" {
+		return strings.TrimSpace(conf.Model)
+	}
+	if conf.Viper != nil {
+		pcfg := provider.ResolveProvider(conf.Viper)
+		if strings.TrimSpace(conf.Provider) != "" {
+			pcfg.Name = strings.TrimSpace(conf.Provider)
+		}
+		if pcfg.Viper != nil {
+			if model := strings.TrimSpace(pcfg.Viper.GetString("model")); model != "" {
+				return model
+			}
+		}
+	}
+	return strings.TrimSpace(fallback)
 }

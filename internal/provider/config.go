@@ -71,34 +71,30 @@ func ResolveProvider(v *viper.Viper) ProviderConfig {
 func bindProviderEnvVars(name string, v *viper.Viper) {
 	switch name {
 	case "openai":
-		v.SetDefault("api_key", os.Getenv("OPENAI_API_KEY"))
-		v.SetDefault("model", envOrDefault("OPENAI_API_MODEL", "gpt-4o"))
-		v.SetDefault("base_url", envOrDefault("OPENAI_API_BASE", "https://api.openai.com/v1"))
+		v.SetDefault("model", "gpt-4o")
+		v.SetDefault("base_url", "https://api.openai.com/v1")
+		overrideFromEnv(v, "api_key", "OPENAI_API_KEY")
+		overrideFromEnv(v, "model", "OPENAI_API_MODEL")
+		overrideFromEnv(v, "base_url", "OPENAI_API_BASE")
 	case "anthropic", "claude":
-		v.SetDefault("api_key", os.Getenv("ANTHROPIC_API_KEY"))
-		v.SetDefault("model", envOrDefault("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"))
-		v.SetDefault("base_url", envOrDefault("ANTHROPIC_API_BASE", "https://api.anthropic.com"))
+		v.SetDefault("model", "claude-sonnet-4-20250514")
+		v.SetDefault("base_url", "https://api.anthropic.com")
+		overrideFromEnv(v, "api_key", "ANTHROPIC_API_KEY")
+		overrideFromEnv(v, "model", "ANTHROPIC_MODEL")
+		overrideFromEnv(v, "base_url", "ANTHROPIC_API_BASE")
 	case "azure":
-		v.SetDefault("api_key", os.Getenv("AZURE_OPENAI_API_KEY"))
-		v.SetDefault("model", os.Getenv("AZURE_OPENAI_MODEL"))
-		v.SetDefault("base_url", os.Getenv("AZURE_OPENAI_ENDPOINT"))
-		v.SetDefault("api_version", envOrDefault("AZURE_OPENAI_API_VERSION", "2024-02-01"))
+		v.SetDefault("api_version", "2024-02-01")
+		overrideFromEnv(v, "api_key", "AZURE_OPENAI_API_KEY")
+		overrideFromEnv(v, "model", "AZURE_OPENAI_MODEL")
+		overrideFromEnv(v, "base_url", "AZURE_OPENAI_ENDPOINT")
+		overrideFromEnv(v, "api_version", "AZURE_OPENAI_API_VERSION")
 	default:
 		// Generic / OpenAI-compatible: try PREV_<PROVIDER>_* env vars.
 		prefix := strings.ToUpper(name)
-		v.SetDefault("api_key", os.Getenv(fmt.Sprintf("PREV_%s_API_KEY", prefix)))
-		v.SetDefault("model", os.Getenv(fmt.Sprintf("PREV_%s_MODEL", prefix)))
-		v.SetDefault("base_url", os.Getenv(fmt.Sprintf("PREV_%s_BASE_URL", prefix)))
+		overrideFromEnv(v, "api_key", fmt.Sprintf("PREV_%s_API_KEY", prefix))
+		overrideFromEnv(v, "model", fmt.Sprintf("PREV_%s_MODEL", prefix))
+		overrideFromEnv(v, "base_url", fmt.Sprintf("PREV_%s_BASE_URL", prefix))
 	}
-}
-
-// BindProviderEnvDefaults applies environment variable defaults for a provider.
-// Useful when creating a fresh viper instance (e.g. for listing providers).
-func BindProviderEnvDefaults(name string, v *viper.Viper) {
-	if v == nil {
-		return
-	}
-	bindProviderEnvVars(name, v)
 }
 
 func envOrDefault(key, fallback string) string {
@@ -106,6 +102,12 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func overrideFromEnv(v *viper.Viper, key, envName string) {
+	if value := strings.TrimSpace(os.Getenv(envName)); value != "" {
+		v.Set(key, value)
+	}
 }
 
 // SampleConfigYAML returns an example config.yml snippet that documents all
@@ -154,6 +156,41 @@ retry:
   initial_interval: 1s
   max_interval: 30s
   multiplier: 2.0
+
+# Review policy and conventions.
+review:
+  # 1: critical only, 10: include nits and minor suggestions.
+  nitpick: 5
+  # Optional strictness default for MR review when CLI flag is not provided.
+  # Allowed: strict | normal | lenient
+  # strictness: "normal"
+  # Number of AI review passes (re-review loop) for MR review.
+  passes: 1
+  # Maximum inline comments for MR review (0 = unlimited).
+  max_comments: 0
+  # Inline filtering mode: added | diff_context | file | nofilter
+  filter_mode: "diff_context"
+  # MR diff source strategy: auto | git | raw | api
+  mr_diff_source: "auto"
+  # Enable structured JSON findings output parsing (with markdown fallback).
+  structured_output: false
+  # Enable incremental review scope using baseline markers.
+  incremental: false
+  # Post inline comments only (skip summary notes and thread replies).
+  inline_only: false
+  # Optional Serena/context defaults for MR review.
+  # serena_mode: "auto"
+  # context_lines: 10
+  # max_tokens: 80000
+  # Optional @mention handle used by MR thread commands, e.g. "@my-bot review".
+  # When empty, mention-driven actions are disabled.
+  mention_handle: ""
+  conventions:
+    labels: ["issue", "suggestion", "remark"]
+  # Optional custom instructions injected into review prompts.
+  guidelines: |
+    Prioritize correctness, security, and maintainability.
+    Keep findings concrete and actionable.
 
 # Display options.
 debug: false

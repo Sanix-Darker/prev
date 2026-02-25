@@ -130,10 +130,27 @@ func TestGetGitDiffForBranch(t *testing.T) {
 	assert.Contains(t, diff, "hello.go")
 }
 
+func TestGetGitDiffForRefs(t *testing.T) {
+	repoPath := setupGitRepo(t)
+
+	diff, err := GetGitDiffForRefs(repoPath, "main", "feature")
+	require.NoError(t, err)
+	assert.NotEmpty(t, diff)
+	assert.Contains(t, diff, "hello.go")
+}
+
 func TestGetGitDiffForBranch_SameBranch(t *testing.T) {
 	repoPath := setupGitRepo(t)
 
 	diff, err := GetGitDiffForBranch(repoPath, "main", "main")
 	require.NoError(t, err)
 	assert.Empty(t, diff)
+}
+
+func TestGetCommitMessage(t *testing.T) {
+	repoPath := setupGitRepo(t)
+
+	msg, err := GetCommitMessage(repoPath, "feature")
+	require.NoError(t, err)
+	assert.Contains(t, msg, "second feature commit")
 }

@@ -136,6 +136,20 @@ func TestParseGitLabDiffs(t *testing.T) {
 	assert.Equal(t, "main.go", changes[0].NewName)
 }
 
+func TestParseGitLabDiffs_MarksPDFAsBinary(t *testing.T) {
+	diffs := []GitLabDiff{
+		{
+			OldPath: "docs/spec.pdf",
+			NewPath: "docs/spec.pdf",
+			Diff:    "@@ -0,0 +0,0 @@\n",
+		},
+	}
+	changes, err := ParseGitLabDiffs(diffs)
+	require.NoError(t, err)
+	require.Len(t, changes, 1)
+	assert.True(t, changes[0].IsBinary)
+}
+
 func TestFormatForReview(t *testing.T) {
 	changes := []FileChange{
 		{
@@ -158,4 +172,38 @@ func TestFormatForReview(t *testing.T) {
 	assert.Contains(t, formatted, "main.go")
 	assert.Contains(t, formatted, "+import \"os\"")
 	assert.Contains(t, formatted, "-import \"fmt\"")
+}
+
+func TestFormatForReview_SkipsBinaryFiles(t *testing.T) {
+	changes := []FileChange{
+		{
+			NewName:  "docs/spec.pdf",
+			IsBinary: true,
+		},
+		{
+			NewName: "main.go",
+			Stats:   DiffStats{Additions: 1, Deletions: 0},
+			Hunks: []Hunk{
+				{
+					OldStart: 1, OldLines: 1, NewStart: 1, NewLines: 2,
+					Lines: []DiffLine{
+						{Type: LineAdded, Content: "fmt.Println(\"ok\")", NewLineNo: 2},
+					},
+				},
+			},
+		},
+	}
+	formatted := FormatForReview(changes)
+	assert.NotContains(t, formatted, "spec.pdf")
+	assert.Contains(t, formatted, "main.go")
+}
+
+func TestFilterTextChanges(t *testing.T) {
+	changes := []FileChange{
+		{NewName: "docs/spec.pdf", IsBinary: true},
+		{NewName: "main.go", IsBinary: false},
+	}
+	got := FilterTextChanges(changes)
+	require.Len(t, got, 1)
+	assert.Equal(t, "main.go", got[0].NewName)
 }

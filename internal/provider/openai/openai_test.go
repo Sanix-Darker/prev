@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -115,4 +116,42 @@ func TestOpenAIInfo(t *testing.T) {
 	info := p.Info()
 	assert.Equal(t, "openai", info.Name)
 	assert.True(t, info.SupportsStreaming)
+}
+
+func TestOpenAIComplete_GPT5UsesMaxCompletionTokens(t *testing.T) {
+	var got map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/chat/completions" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &got)
+		resp := apiResponse{
+			ID: "chatcmpl-test", Model: "gpt-5.2-chat-latest",
+			Choices: []apiChoice{{Index: 0, Message: apiMessage{Role: "assistant", Content: "ok"}, FinishReason: "stop"}},
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	v := viper.New()
+	v.Set("api_key", "test-key")
+	v.Set("base_url", server.URL)
+	v.Set("model", "gpt-5.2-chat-latest")
+	v.Set("max_tokens", 123)
+
+	p, err := NewProvider(v)
+	require.NoError(t, err)
+	_, err = p.Complete(context.Background(), provider.CompletionRequest{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "Hello"}},
+	})
+	require.NoError(t, err)
+
+	_, hasMaxTokens := got["max_tokens"]
+	_, hasMaxCompletion := got["max_completion_tokens"]
+	assert.False(t, hasMaxTokens)
+	assert.True(t, hasMaxCompletion)
+	assert.EqualValues(t, 123, got["max_completion_tokens"])
 }

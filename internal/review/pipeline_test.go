@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 
@@ -139,48 +138,6 @@ func setupPipelineRepo(t *testing.T) (repoPath string) {
 	return dir
 }
 
-func setupPipelineRepoWithExtraFile(t *testing.T) (repoPath string) {
-	t.Helper()
-
-	dir, err := os.MkdirTemp("", "prev-pipeline-test-extra-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { os.RemoveAll(dir) })
-
-	run := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		cmd.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=Test",
-			"GIT_AUTHOR_EMAIL=test@test.com",
-			"GIT_COMMITTER_NAME=Test",
-			"GIT_COMMITTER_EMAIL=test@test.com",
-		)
-		out, err := cmd.CombinedOutput()
-		require.NoError(t, err, "git %v failed: %s", args, string(out))
-	}
-
-	run("init", "-b", "main")
-
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"),
-		[]byte("package main\n\nfunc main() {}\n"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "extra.go"),
-		[]byte("package main\n\nfunc extra() {}\n"), 0644))
-	run("add", ".")
-	run("commit", "-m", "initial")
-
-	run("checkout", "-b", "feature")
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"),
-		[]byte("package main\n\nfunc main() { extra() }\n"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "extra.go"),
-		[]byte("package main\n\nfunc extra() { println(\"hi\") }\n"), 0644))
-	run("add", ".")
-	run("commit", "-m", "update main and extra")
-
-	run("checkout", "main")
-
-	return dir
-}
-
 func TestRunBranchReview_FullPipeline(t *testing.T) {
 	repoPath := setupPipelineRepo(t)
 
@@ -264,54 +221,6 @@ func TestRunBranchReview_ProgressCallbacks(t *testing.T) {
 	assert.Contains(t, stages, "Enriching context")
 	assert.Contains(t, stages, "AI walkthrough")
 	assert.Contains(t, stages, "Reviewing files")
-}
-
-func TestRunBranchReview_PathFilter(t *testing.T) {
-	repoPath := setupPipelineRepoWithExtraFile(t)
-
-	mock := &sequentialMockProvider{
-		responses: []string{"## Summary\nGood changes.\n", "**main.go**: No issues.\n"},
-	}
-
-	cfg := ReviewConfig{
-		ContextLines:   3,
-		MaxBatchTokens: 80000,
-		Strictness:     "normal",
-		SerenaMode:     "off",
-		PathFilter:     "main.go",
-	}
-
-	result, err := RunBranchReview(mock, repoPath, "feature", "main", cfg, nil)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, 1, result.TotalFiles)
-}
-
-func TestRunCommitReview(t *testing.T) {
-	repoPath := setupPipelineRepo(t)
-
-	// Get the commit hash for the feature branch
-	cmd := exec.Command("git", "-C", repoPath, "rev-parse", "feature")
-	out, err := cmd.Output()
-	require.NoError(t, err)
-	commitHash := strings.TrimSpace(string(out))
-
-	mock := &sequentialMockProvider{
-		responses: []string{"## Summary\nCommit changes.\n", "**main.go**: No issues.\n"},
-	}
-
-	cfg := ReviewConfig{
-		ContextLines:   3,
-		MaxBatchTokens: 80000,
-		Strictness:     "normal",
-		SerenaMode:     "off",
-	}
-
-	result, err := RunCommitReview(mock, repoPath, commitHash, "update hello and add greet", cfg, nil)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, commitHash, result.CommitHash)
-	assert.Greater(t, result.TotalFiles, 0)
 }
 
 func TestParseWalkthrough_NoTable(t *testing.T) {

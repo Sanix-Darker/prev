@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"strings"
+
 	common "github.com/sanix-darker/prev/internal/common"
 	config "github.com/sanix-darker/prev/internal/config"
 	core "github.com/sanix-darker/prev/internal/core"
@@ -28,7 +30,18 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 				common.LogError(err.Error(), true, false, nil)
 			}
 
-			prompt := core.BuildReviewPrompt(conf, d)
+			configGuidelines := ""
+			if conf.Viper != nil {
+				configGuidelines = strings.TrimSpace(conf.Viper.GetString("review.guidelines"))
+			}
+			prompt := core.BuildReviewPrompt(
+				conf,
+				d,
+				mergeGuidelines(
+					configGuidelines,
+					repoGuidelineSection(guidelineRootForDiffInput(args[0])),
+				),
+			)
 
 			if conf.Debug {
 				common.LogInfo(prompt, nil)

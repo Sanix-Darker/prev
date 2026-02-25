@@ -20,7 +20,7 @@ func testConfig(explain bool) config.Config {
 
 func TestBuildReviewPrompt_WithExplanation(t *testing.T) {
 	conf := testConfig(true)
-	prompt := BuildReviewPrompt(conf, "+added line\n-removed line")
+	prompt := BuildReviewPrompt(conf, "+added line\n-removed line", "")
 
 	assert.Contains(t, prompt, "keypoints")
 	assert.Contains(t, prompt, "+added line")
@@ -30,7 +30,7 @@ func TestBuildReviewPrompt_WithExplanation(t *testing.T) {
 
 func TestBuildReviewPrompt_WithoutExplanation(t *testing.T) {
 	conf := testConfig(false)
-	prompt := BuildReviewPrompt(conf, "+some change")
+	prompt := BuildReviewPrompt(conf, "+some change", "")
 
 	assert.Contains(t, prompt, "No explanations")
 	assert.Contains(t, prompt, "+some change")
@@ -43,6 +43,19 @@ func TestBuildOptimPrompt(t *testing.T) {
 
 	assert.Contains(t, prompt, code)
 	assert.Contains(t, prompt, "optimal rewrite")
+}
+
+func TestBuildReviewPrompt_WithGuidelines(t *testing.T) {
+	conf := testConfig(false)
+	prompt := BuildReviewPrompt(conf, "+some change", "Use repository logging helpers.")
+	assert.Contains(t, prompt, "Repository-specific guidelines")
+	assert.Contains(t, prompt, "Use repository logging helpers.")
+	assert.Contains(t, prompt, "upstream callers and downstream callees affected")
+	assert.Contains(t, prompt, "regression risk and missing/needed tests")
+	assert.Contains(t, prompt, "Prioritize source code concerns first.")
+	assert.Contains(t, prompt, "focus on typos/spelling/grammar only")
+	assert.Contains(t, prompt, "When Change Intent Context is provided")
+	assert.Contains(t, prompt, "Do not over-engineer suggestions")
 }
 
 func TestReadFileLines(t *testing.T) {

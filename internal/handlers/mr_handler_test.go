@@ -8,62 +8,83 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockVCSProvider struct {
-	mr    *vcs.MergeRequest
-	diffs []vcs.FileDiff
+type mockMRVCSProvider struct {
+	mr      *vcs.MergeRequest
+	diffs   []vcs.FileDiff
+	rawDiff string
 }
 
-func (m *mockVCSProvider) Info() vcs.ProviderInfo { return vcs.ProviderInfo{Name: "mock"} }
-func (m *mockVCSProvider) Validate() error        { return nil }
-
-func (m *mockVCSProvider) FetchMR(projectID string, mrIID int64) (*vcs.MergeRequest, error) {
+func (m *mockMRVCSProvider) Info() vcs.ProviderInfo { return vcs.ProviderInfo{Name: "mock"} }
+func (m *mockMRVCSProvider) FetchMR(string, int64) (*vcs.MergeRequest, error) {
 	return m.mr, nil
 }
-
-func (m *mockVCSProvider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, error) {
+func (m *mockMRVCSProvider) FetchMRDiffs(string, int64) ([]vcs.FileDiff, error) {
 	return m.diffs, nil
 }
-
-func (m *mockVCSProvider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
+func (m *mockMRVCSProvider) FetchMRRawDiff(string, int64) (string, error) {
+	return m.rawDiff, nil
+}
+func (m *mockMRVCSProvider) ListMRDiscussions(string, int64) ([]vcs.MRDiscussion, error) {
 	return nil, nil
 }
-
-func (m *mockVCSProvider) PostSummaryNote(projectID string, mrIID int64, body string) error {
+func (m *mockMRVCSProvider) ListMRNotes(string, int64) ([]vcs.MRNote, error) { return nil, nil }
+func (m *mockMRVCSProvider) ListOpenMRs(string) ([]*vcs.MergeRequest, error) { return nil, nil }
+func (m *mockMRVCSProvider) PostSummaryNote(string, int64, string) error     { return nil }
+func (m *mockMRVCSProvider) PostInlineComment(string, int64, vcs.DiffRefs, vcs.InlineComment) error {
 	return nil
 }
+func (m *mockMRVCSProvider) ReplyToMRDiscussion(string, int64, string, string) error { return nil }
+func (m *mockMRVCSProvider) FormatSuggestionBlock(s string) string                   { return s }
+func (m *mockMRVCSProvider) Validate() error                                         { return nil }
 
-func (m *mockVCSProvider) PostInlineComment(projectID string, mrIID int64, refs vcs.DiffRefs, comment vcs.InlineComment) error {
-	return nil
+func TestNormalizeDiffSource(t *testing.T) {
+	assert.Equal(t, "auto", normalizeDiffSource(""))
+	assert.Equal(t, "auto", normalizeDiffSource("unknown"))
+	assert.Equal(t, "git", normalizeDiffSource("git"))
+	assert.Equal(t, "raw", normalizeDiffSource("RAW"))
+	assert.Equal(t, "api", normalizeDiffSource("api"))
 }
 
-func (m *mockVCSProvider) FormatSuggestionBlock(suggestion string) string {
-	return "```suggestion\n" + suggestion + "\n```"
-}
-
-func TestExtractMRHandler(t *testing.T) {
-	provider := &mockVCSProvider{
+func TestExtractMRHandlerWithOptions_RawDiffPreferred(t *testing.T) {
+	provider := &mockMRVCSProvider{
 		mr: &vcs.MergeRequest{
-			IID:          7,
-			Title:        "Improve recipe endpoint",
-			Description:  "Adds a recipe filter",
+			IID:          42,
+			Title:        "test",
+			Description:  "desc",
+			SourceBranch: "feature",
+			TargetBranch: "main",
+			DiffRefs: vcs.DiffRefs{
+				BaseSHA:  "aaa",
+				HeadSHA:  "bbb",
+				StartSHA: "ccc",
+			},
+		},
+		rawDiff: "diff --git a/public/index.php b/public/index.php\n--- a/public/index.php\n+++ b/public/index.php\n@@ -1,1 +1,2 @@\n <?php\n+echo json_encode($x);\n",
+	}
+	got, err := ExtractMRHandlerWithOptions(provider, "grp/proj", 42, "normal", MRExtractOptions{
+		DiffSource: "raw",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.NotEmpty(t, got.Changes)
+}
+
+func TestExtractMRHandlerWithOptions_FailsOnNoHunks(t *testing.T) {
+	provider := &mockMRVCSProvider{
+		mr: &vcs.MergeRequest{
+			IID:          42,
+			Title:        "test",
+			Description:  "desc",
 			SourceBranch: "feature",
 			TargetBranch: "main",
 		},
 		diffs: []vcs.FileDiff{
-			{
-				OldPath: "public/index.php",
-				NewPath: "public/index.php",
-				Diff:    "@@ -1,1 +1,2 @@\n-old\n+new\n+line\n",
-			},
+			{OldPath: "public/index.php", NewPath: "public/index.php", Diff: ""},
 		},
 	}
-
-	review, err := ExtractMRHandler(provider, "acme/blog", 7, "strict")
-	require.NoError(t, err)
-	require.NotNil(t, review)
-
-	assert.Equal(t, int64(7), review.MR.IID)
-	assert.Len(t, review.Changes, 1)
-	assert.Contains(t, review.Prompt, "Improve recipe endpoint")
-	assert.Contains(t, review.Prompt, "Report all issues")
+	_, err := ExtractMRHandlerWithOptions(provider, "grp/proj", 42, "normal", MRExtractOptions{
+		DiffSource: "api",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no reviewable modified hunks found")
 }

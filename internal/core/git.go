@@ -13,10 +13,30 @@ func GetGitDiffForBranch(repoPath, baseBranch, targetBranch string) (string, err
 	return runGitDiff(repoPath, args)
 }
 
+// GetGitDiffForRefs returns the diff between two refs (branches/SHAs/tags).
+func GetGitDiffForRefs(repoPath, baseRef, headRef string) (string, error) {
+	diffRange := fmt.Sprintf("%s...%s", baseRef, headRef)
+	args := []string{"diff", diffRange}
+	return runGitDiff(repoPath, args)
+}
+
 // GetGitDiffForCommit returns the diff for a single commit.
 func GetGitDiffForCommit(repoPath, commitHash string) (string, error) {
 	args := []string{"show", "--format=", commitHash}
 	return runGitDiff(repoPath, args)
+}
+
+// GetCommitMessage returns commit subject + body for a given commit hash.
+func GetCommitMessage(repoPath, commitHash string) (string, error) {
+	cmd := exec.Command("git", "-C", repoPath, "show", "-s", "--format=%s%n%n%b", commitHash)
+	out, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("git show message failed: %s", string(exitErr.Stderr))
+		}
+		return "", fmt.Errorf("git show message failed: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func runGitDiff(repoPath string, args []string) (string, error) {
@@ -86,19 +106,6 @@ func GetDiffStat(repoPath, baseBranch, targetBranch string) (string, error) {
 			return "", fmt.Errorf("git diff --stat failed: %s", string(exitErr.Stderr))
 		}
 		return "", fmt.Errorf("git diff --stat failed: %w", err)
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-// GetDiffStatForCommit returns the diff stat summary for a single commit.
-func GetDiffStatForCommit(repoPath, commitHash string) (string, error) {
-	cmd := exec.Command("git", "-C", repoPath, "show", "--stat", "--format=", commitHash)
-	out, err := cmd.Output()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("git show --stat failed: %s", string(exitErr.Stderr))
-		}
-		return "", fmt.Errorf("git show --stat failed: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }

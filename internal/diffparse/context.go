@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/sanix-darker/prev/internal/core"
@@ -186,9 +187,9 @@ func enrichHunks(hunks []Hunk, newLines []string, contextLines int) []EnrichedHu
 
 	// Build enriched hunks with context ranges
 	type hunkRange struct {
-		hunk      Hunk
-		ctxStart  int // 1-based
-		ctxEnd    int // 1-based
+		hunk     Hunk
+		ctxStart int // 1-based
+		ctxEnd   int // 1-based
 	}
 
 	var ranges []hunkRange
@@ -334,6 +335,8 @@ func FormatEnrichedForReview(efc EnrichedFileChange) string {
 
 	for _, eh := range efc.EnrichedHunks {
 		sb.WriteString(fmt.Sprintf("### Lines %d-%d:\n", eh.StartLine, eh.EndLine))
+		sb.WriteString(fmt.Sprintf("@@ -%d,%d +%d,%d @@\n",
+			eh.Hunk.OldStart, eh.Hunk.OldLines, eh.Hunk.NewStart, eh.Hunk.NewLines))
 
 		langFence := efc.Language
 		if langFence == "" {
@@ -342,29 +345,41 @@ func FormatEnrichedForReview(efc EnrichedFileChange) string {
 		sb.WriteString(fmt.Sprintf("```%s\n", langFence))
 
 		// Context before
-		for _, line := range eh.ContextBefore {
-			sb.WriteString(fmt.Sprintf("  %s\n", line))
+		for i, line := range eh.ContextBefore {
+			ctxLine := eh.StartLine + i
+			if ctxLine >= eh.Hunk.NewStart {
+				break
+			}
+			sb.WriteString(fmt.Sprintf("  %s | %s\n", fmtLineNo(ctxLine), line))
 		}
 
 		// Diff lines
 		for _, dl := range eh.Hunk.Lines {
 			switch dl.Type {
 			case LineAdded:
-				sb.WriteString(fmt.Sprintf("+ %s\n", dl.Content))
+				sb.WriteString(fmt.Sprintf("+ %s | %s\n", fmtLineNo(dl.NewLineNo), dl.Content))
 			case LineDeleted:
-				sb.WriteString(fmt.Sprintf("- %s\n", dl.Content))
+				sb.WriteString(fmt.Sprintf("- %s | %s\n", fmtLineNo(dl.OldLineNo), dl.Content))
 			default:
-				sb.WriteString(fmt.Sprintf("  %s\n", dl.Content))
+				sb.WriteString(fmt.Sprintf("  %s | %s\n", fmtLineNo(dl.NewLineNo), dl.Content))
 			}
 		}
 
 		// Context after
-		for _, line := range eh.ContextAfter {
-			sb.WriteString(fmt.Sprintf("  %s\n", line))
+		hunkEnd := eh.Hunk.NewStart + eh.Hunk.NewLines - 1
+		for i, line := range eh.ContextAfter {
+			sb.WriteString(fmt.Sprintf("  %s | %s\n", fmtLineNo(hunkEnd+1+i), line))
 		}
 
 		sb.WriteString("```\n\n")
 	}
 
 	return sb.String()
+}
+
+func fmtLineNo(line int) string {
+	if line <= 0 {
+		return "?"
+	}
+	return strconv.Itoa(line)
 }

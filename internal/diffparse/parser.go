@@ -2,6 +2,7 @@ package diffparse
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/sourcegraph/go-diff/diff"
@@ -87,6 +88,9 @@ func ParseGitDiff(raw string) ([]FileChange, error) {
 				}
 			}
 		}
+		if !fc.IsBinary {
+			fc.IsBinary = isBinaryReviewPath(changePath(fc))
+		}
 
 		// Parse hunks
 		for _, h := range fd.Hunks {
@@ -155,6 +159,12 @@ func ParseGitLabDiffs(diffs []GitLabDiff) ([]FileChange, error) {
 			IsNew:     d.NewFile,
 			IsDeleted: d.DeletedFile,
 			IsRenamed: d.RenamedFile,
+		}
+		if strings.Contains(d.Diff, "Binary files") || strings.Contains(d.Diff, "GIT binary patch") {
+			fc.IsBinary = true
+		}
+		if !fc.IsBinary {
+			fc.IsBinary = isBinaryReviewPath(changePath(fc))
 		}
 
 		if d.Diff != "" {
@@ -232,7 +242,6 @@ func FormatForReview(changes []FileChange) string {
 
 	for _, fc := range changes {
 		if fc.IsBinary {
-			sb.WriteString(fmt.Sprintf("--- Binary file: %s\n\n", fc.NewName))
 			continue
 		}
 
@@ -271,6 +280,39 @@ func FormatForReview(changes []FileChange) string {
 	}
 
 	return sb.String()
+}
+
+// FilterTextChanges returns only reviewable text-file changes.
+func FilterTextChanges(changes []FileChange) []FileChange {
+	out := make([]FileChange, 0, len(changes))
+	for _, fc := range changes {
+		if fc.IsBinary {
+			continue
+		}
+		out = append(out, fc)
+	}
+	return out
+}
+
+func changePath(fc FileChange) string {
+	if strings.TrimSpace(fc.NewName) != "" {
+		return fc.NewName
+	}
+	return fc.OldName
+}
+
+func isBinaryReviewPath(path string) bool {
+	ext := strings.ToLower(filepath.Ext(strings.TrimSpace(path)))
+	switch ext {
+	case ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".tiff", ".heic",
+		".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar",
+		".jar", ".war", ".so", ".dll", ".dylib", ".a", ".o", ".obj", ".exe", ".bin", ".class",
+		".woff", ".woff2", ".ttf", ".otf", ".eot",
+		".mp3", ".mp4", ".mov", ".wav", ".avi", ".mkv", ".flac":
+		return true
+	default:
+		return false
+	}
 }
 
 func cleanPath(p string) string {

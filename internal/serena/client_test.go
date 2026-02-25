@@ -38,6 +38,12 @@ func TestRequiredMode(t *testing.T) {
 	assert.Nil(t, client)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "serena is required")
+	assert.Contains(t, err.Error(), "uvx is installed")
+	assert.Contains(t, err.Error(), "git is available")
+	assert.Contains(t, err.Error(), "reach github.com")
+	assert.Contains(t, err.Error(), "astral-sh/setup-uv")
+	assert.Contains(t, err.Error(), "uvx --from")
+	assert.Contains(t, err.Error(), "serena --help")
 }
 
 func TestOffMode(t *testing.T) {

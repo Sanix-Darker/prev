@@ -27,4 +27,5 @@ func init() {
 	rootCmd.PersistentFlags().Bool("debug", false, "Enable debug output")
 	rootCmd.PersistentFlags().BoolP("stream", "s", true, "Enable streaming output (default: true)")
 	rootCmd.PersistentFlags().String("strictness", "", "Review strictness: strict, normal, lenient (default: normal)")
+	rootCmd.PersistentFlags().Int("nitpick", 0, "Review nitpick level from 1 (critical only) to 10 (include nits)")
 }

@@ -34,9 +34,6 @@ func RunBranchReview(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get branch diff: %w", err)
 	}
-	if cfg.PathFilter != "" && cfg.PathFilter != "." {
-		rawDiff = filterUnifiedDiffByPath(rawDiff, cfg.PathFilter)
-	}
 	if rawDiff == "" {
 		return nil, fmt.Errorf("no differences found between %s and %s", baseBranch, branchName)
 	}
@@ -47,13 +44,24 @@ func RunBranchReview(
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse diff: %w", err)
 	}
+	changes = diffparse.FilterTextChanges(changes)
+	if len(changes) == 0 {
+		return nil, fmt.Errorf("no reviewable text changes found between %s and %s", baseBranch, branchName)
+	}
 
 	// Step 3: Initialize Serena if configured
 	var serenaClient *serena.Client
-	if cfg.SerenaMode != "off" {
+	if cfg.SerenaMode == "off" {
+		onProgress("Serena: off (line-based context)", 0, 0)
+	} else {
 		serenaClient, err = serena.NewClient(cfg.SerenaMode)
 		if err != nil {
 			return nil, fmt.Errorf("serena initialization failed: %w", err)
+		}
+		if serenaClient != nil {
+			onProgress("Serena: active (symbol-level context via MCP)", 0, 0)
+		} else {
+			onProgress("Serena: unavailable, fallback to line-based context", 0, 0)
 		}
 		if serenaClient != nil {
 			defer serenaClient.Close()
@@ -78,7 +86,14 @@ func RunBranchReview(
 
 	// Step 7: Pass 1 — Walkthrough
 	onProgress("AI walkthrough", 0, 0)
-	walkthroughPrompt := BuildWalkthroughPrompt(branchName, baseBranch, categorized, diffStat, cfg.Strictness)
+	walkthroughPrompt := BuildWalkthroughPrompt(
+		branchName,
+		baseBranch,
+		categorized,
+		diffStat,
+		cfg.Strictness,
+		cfg.Guidelines,
+	)
 
 	if cfg.Debug {
 		fmt.Printf("[debug] walkthrough prompt length: %d chars\n", len(walkthroughPrompt))
@@ -99,7 +114,13 @@ func RunBranchReview(
 	for i, batch := range batches {
 		onProgress("Reviewing files", i+1, len(batches))
 
-		reviewPrompt := BuildFileReviewPrompt(batch, walkthrough.Summary, branchName, cfg.Strictness)
+		reviewPrompt := BuildFileReviewPrompt(
+			batch,
+			walkthrough.Summary,
+			branchName,
+			cfg.Strictness,
+			cfg.Guidelines,
+		)
 
 		if cfg.Debug {
 			fmt.Printf("[debug] batch %d/%d: %d files, prompt length: %d chars\n",
@@ -148,149 +169,6 @@ func RunBranchReview(
 	return &BranchReviewResult{
 		BranchName:     branchName,
 		BaseBranch:     baseBranch,
-		Walkthrough:    walkthrough,
-		FileReviews:    allFileReviews,
-		TotalFiles:     len(changes),
-		TotalAdditions: totalAdd,
-		TotalDeletions: totalDel,
-	}, nil
-}
-
-// RunCommitReview executes the two-pass review pipeline for a single commit.
-func RunCommitReview(
-	aiProvider provider.AIProvider,
-	repoPath string,
-	commitHash string,
-	commitSubject string,
-	cfg ReviewConfig,
-	onProgress ProgressCallback,
-) (*CommitReviewResult, error) {
-	if onProgress == nil {
-		onProgress = func(string, int, int) {}
-	}
-
-	onProgress("Getting diff", 0, 0)
-	rawDiff, err := core.GetGitDiffForCommit(repoPath, commitHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get commit diff: %w", err)
-	}
-	if cfg.PathFilter != "" && cfg.PathFilter != "." {
-		rawDiff = filterUnifiedDiffByPath(rawDiff, cfg.PathFilter)
-	}
-	if rawDiff == "" {
-		return nil, fmt.Errorf("no differences found for commit %s", commitHash)
-	}
-
-	onProgress("Parsing diff", 0, 0)
-	changes, err := diffparse.ParseGitDiff(rawDiff)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse diff: %w", err)
-	}
-
-	// Step 3: Initialize Serena if configured
-	var serenaClient *serena.Client
-	if cfg.SerenaMode != "off" {
-		serenaClient, err = serena.NewClient(cfg.SerenaMode)
-		if err != nil {
-			return nil, fmt.Errorf("serena initialization failed: %w", err)
-		}
-		if serenaClient != nil {
-			defer serenaClient.Close()
-		}
-	}
-
-	// Step 4: Enrich file changes with context
-	onProgress("Enriching context", 0, 0)
-	enriched, err := diffparse.EnrichFileChanges(
-		changes, repoPath, commitHash, commitHash,
-		cfg.ContextLines, cfg.MaxBatchTokens, serenaClient,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to enrich changes: %w", err)
-	}
-
-	// Step 5: Categorize
-	categorized := CategorizeChanges(enriched)
-
-	// Step 6: Get diff stat
-	diffStat, _ := core.GetDiffStatForCommit(repoPath, commitHash)
-
-	// Step 7: Pass 1 — Walkthrough
-	onProgress("AI walkthrough", 0, 0)
-	commitLabel := fmt.Sprintf("commit %s", commitHash)
-	if commitSubject != "" {
-		commitLabel = fmt.Sprintf("commit %s - %s", commitHash, commitSubject)
-	}
-	walkthroughPrompt := BuildWalkthroughPrompt(commitLabel, "parent", categorized, diffStat, cfg.Strictness)
-
-	if cfg.Debug {
-		fmt.Printf("[debug] walkthrough prompt length: %d chars\n", len(walkthroughPrompt))
-	}
-
-	walkthroughContent, err := completeWithProvider(aiProvider, walkthroughPrompt)
-	if err != nil {
-		return nil, fmt.Errorf("walkthrough AI call failed: %w", err)
-	}
-
-	walkthrough := parseWalkthrough(walkthroughContent)
-
-	// Step 8: Batch files
-	batches := BatchFiles(categorized, cfg.MaxBatchTokens)
-
-	// Step 9: Pass 2 — Detailed review per batch
-	var allFileReviews []FileReviewResult
-	for i, batch := range batches {
-		onProgress("Reviewing files", i+1, len(batches))
-
-		reviewPrompt := BuildFileReviewPrompt(batch, walkthrough.Summary, commitLabel, cfg.Strictness)
-
-		if cfg.Debug {
-			fmt.Printf("[debug] batch %d/%d: %d files, prompt length: %d chars\n",
-				i+1, len(batches), len(batch.Files), len(reviewPrompt))
-		}
-
-		reviewContent, err := completeWithProvider(aiProvider, reviewPrompt)
-		if err != nil {
-			return nil, fmt.Errorf("review AI call (batch %d) failed: %w", i+1, err)
-		}
-
-		parsed := core.ParseReviewResponse(reviewContent)
-		filtered := core.FilterBySeverity(parsed.FileComments, cfg.Strictness)
-
-		// Group comments by file
-		fileMap := map[string]*FileReviewResult{}
-		for _, f := range batch.Files {
-			name := f.NewName
-			if name == "" {
-				name = f.OldName
-			}
-			fileMap[name] = &FileReviewResult{FilePath: name}
-		}
-
-		for _, c := range filtered {
-			fr, ok := fileMap[c.FilePath]
-			if !ok {
-				fr = &FileReviewResult{FilePath: c.FilePath}
-				fileMap[c.FilePath] = fr
-			}
-			fr.Comments = append(fr.Comments, c)
-		}
-
-		for _, fr := range fileMap {
-			allFileReviews = append(allFileReviews, *fr)
-		}
-	}
-
-	// Step 10: Assemble result
-	totalAdd, totalDel := 0, 0
-	for _, fc := range changes {
-		totalAdd += fc.Stats.Additions
-		totalDel += fc.Stats.Deletions
-	}
-
-	return &CommitReviewResult{
-		CommitHash:     commitHash,
-		CommitSubject:  commitSubject,
 		Walkthrough:    walkthrough,
 		FileReviews:    allFileReviews,
 		TotalFiles:     len(changes),
@@ -359,23 +237,4 @@ func parseWalkthrough(content string) WalkthroughResult {
 	}
 
 	return result
-}
-
-func filterUnifiedDiffByPath(diff string, pathFilter string) string {
-	if diff == "" {
-		return ""
-	}
-	var result []string
-	var include bool
-
-	for _, line := range strings.Split(diff, "\n") {
-		if strings.HasPrefix(line, "diff --git") {
-			include = strings.Contains(line, pathFilter)
-		}
-		if include {
-			result = append(result, line)
-		}
-	}
-
-	return strings.Join(result, "\n")
 }

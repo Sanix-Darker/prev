@@ -61,9 +61,20 @@ func runLegacyBranch(conf config.Config, branchName, repoPath, gitPath string, c
 	if err != nil {
 		common.LogError(err.Error(), true, false, nil)
 	}
+	reviewGuidelines := ""
+	if conf.Viper != nil {
+		reviewGuidelines = strings.TrimSpace(conf.Viper.GetString("review.guidelines"))
+	}
+	reviewGuidelines = mergeGuidelines(
+		reviewGuidelines,
+		repoGuidelineSection(guidelineRootFromRepoPath(repoPath)),
+		branchCommitContextBlock(repoPath, core.GetBaseBranch(repoPath), branchName),
+	)
+
 	prompt := core.BuildReviewPrompt(
 		conf,
 		strings.Join(d, "\n-----------------------------------------\n"),
+		reviewGuidelines,
 	)
 	if conf.Debug {
 		common.LogInfo(prompt, nil)
@@ -81,16 +92,23 @@ func runEnhancedBranch(conf config.Config, cmd *cobra.Command, branchName, repoP
 	contextLines, _ := cmd.Flags().GetInt("context")
 	maxTokens, _ := cmd.Flags().GetInt("max-tokens")
 	serenaMode, _ := cmd.Flags().GetString("serena")
-	perCommit, _ := cmd.Flags().GetBool("per-commit")
+
+	configGuidelines := ""
+	if conf.Viper != nil {
+		configGuidelines = strings.TrimSpace(conf.Viper.GetString("review.guidelines"))
+	}
 
 	cfg := review.ReviewConfig{
 		ContextLines:   contextLines,
 		MaxBatchTokens: maxTokens,
 		Strictness:     conf.Strictness,
-		CommitByCommit: perCommit,
-		PathFilter:     gitPath,
 		SerenaMode:     serenaMode,
-		Debug:          conf.Debug,
+		Guidelines: mergeGuidelines(
+			configGuidelines,
+			repoGuidelineSection(guidelineRootFromRepoPath(repoPath)),
+			branchCommitContextBlock(repoPath, core.GetBaseBranch(repoPath), branchName),
+		),
+		Debug: conf.Debug,
 	}
 
 	// Progress callback for spinner updates
@@ -100,17 +118,6 @@ func runEnhancedBranch(conf config.Config, cmd *cobra.Command, branchName, repoP
 		} else {
 			fmt.Fprintf(os.Stderr, "[%s]\n", stage)
 		}
-	}
-
-	if perCommit {
-		result, err := handlers.ExtractBranchReviewPerCommit(p, branchName, repoPath, gitPath, cfg, onProgress)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		output := review.FormatMultiCommitReview(result)
-		fmt.Print(renders.RenderMarkdown(output))
-		return
 	}
 
 	result, err := handlers.ExtractBranchReview(p, branchName, repoPath, gitPath, cfg, onProgress)

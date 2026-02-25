@@ -340,7 +340,7 @@ func TestFormatEnrichedForReview(t *testing.T) {
 				ContextBefore: []string{"// context before"},
 				ContextAfter:  []string{"// context after"},
 				StartLine:     4,
-				EndLine:        8,
+				EndLine:       8,
 			},
 		},
 	}
@@ -352,9 +352,10 @@ func TestFormatEnrichedForReview(t *testing.T) {
 	assert.Contains(t, output, "[+1/-1]")
 	assert.Contains(t, output, "[go]")
 	assert.Contains(t, output, "### Lines 4-8:")
+	assert.Contains(t, output, "@@ -0,0 +5,2 @@")
 	assert.Contains(t, output, "// context before")
-	assert.Contains(t, output, "+ new line")
-	assert.Contains(t, output, "- old line")
+	assert.Contains(t, output, "+ 5 | new line")
+	assert.Contains(t, output, "- 5 | old line")
 	assert.Contains(t, output, "// context after")
 	assert.Contains(t, output, "```go")
 }

@@ -2,6 +2,9 @@ BIN_NAME=prev
 IMAGE_NAME=sanix-darker/${BIN_NAME}
 BIN_PATH=${GOPATH}/bin
 GO_VERSION=1.24
+REVIEWER_BIN_PATH?=../prev-test-reviewer/bin/local
+LINUX_GOOS?=linux
+LINUX_GOARCH?=amd64
 
 default: help
 
@@ -35,6 +38,20 @@ build:
 	# GO111MODULE=on \
 	# CGO_ENABLED=0 \
 	# go build -a -installsuffix cgo -o ${BIN_PATH}/${BIN_NAME}
+
+## Build Linux x86_64 binary for prev-test-reviewer at ../prev-test-reviewer/bin/local.
+build-linux-reviewer:
+	@echo "building ${BIN_NAME} for ${LINUX_GOOS}/${LINUX_GOARCH}"
+	@echo "output=${REVIEWER_BIN_PATH}"
+	@mkdir -p $(dir ${REVIEWER_BIN_PATH})
+	GOOS=${LINUX_GOOS} GOARCH=${LINUX_GOARCH} CGO_ENABLED=0 go build -o ${REVIEWER_BIN_PATH}
+
+## Build portable Linux x86_64 binary for prev-test-reviewer at ../prev-test-reviewer/bin/local.
+build-linux-portable:
+	@echo "building portable ${BIN_NAME} for linux/amd64"
+	@echo "output=../prev-test-reviewer/bin/local"
+	@mkdir -p ../prev-test-reviewer/bin
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../prev-test-reviewer/bin/local
 
 ## Compile optimized for alpine linux.
 docker-build:

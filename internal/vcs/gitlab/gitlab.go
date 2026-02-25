@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/sanix-darker/prev/internal/vcs"
 	gl "gitlab.com/gitlab-org/api/client-go"
@@ -103,6 +104,83 @@ func (p *Provider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, 
 	return allDiffs, nil
 }
 
+func (p *Provider) FetchMRRawDiff(projectID string, mrIID int64) (string, error) {
+	raw, _, err := p.api.MergeRequests.ShowMergeRequestRawDiffs(
+		projectID, mrIID, &gl.ShowMergeRequestRawDiffsOptions{},
+	)
+	if err != nil {
+		return "", fmt.Errorf("gitlab: failed to fetch MR raw diff: %w", err)
+	}
+	return strings.TrimSpace(string(raw)), nil
+}
+
+func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDiscussion, error) {
+	opts := &gl.ListMergeRequestDiscussionsOptions{
+		ListOptions: gl.ListOptions{PerPage: 100},
+	}
+
+	var out []vcs.MRDiscussion
+	for {
+		discussions, resp, err := p.api.Discussions.ListMergeRequestDiscussions(projectID, mrIID, opts)
+		if err != nil {
+			return nil, fmt.Errorf("gitlab: failed to list MR discussions: %w", err)
+		}
+
+		for _, d := range discussions {
+			thread := vcs.MRDiscussion{ID: d.ID}
+			for _, n := range d.Notes {
+				note := vcs.MRDiscussionNote{
+					ID:         n.ID,
+					Author:     n.Author.Username,
+					Body:       n.Body,
+					Resolved:   n.Resolved,
+					Resolvable: n.Resolvable,
+				}
+				if n.Position != nil {
+					note.FilePath = n.Position.NewPath
+					note.Line = int(n.Position.NewLine)
+				}
+				thread.Notes = append(thread.Notes, note)
+			}
+			out = append(out, thread)
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return out, nil
+}
+
+func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, error) {
+	opts := &gl.ListMergeRequestNotesOptions{
+		ListOptions: gl.ListOptions{PerPage: 100},
+	}
+
+	var out []vcs.MRNote
+	for {
+		notes, resp, err := p.api.Notes.ListMergeRequestNotes(projectID, mrIID, opts)
+		if err != nil {
+			return nil, fmt.Errorf("gitlab: failed to list MR notes: %w", err)
+		}
+		for _, n := range notes {
+			out = append(out, vcs.MRNote{
+				ID:     n.ID,
+				Author: n.Author.Username,
+				Body:   n.Body,
+			})
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return out, nil
+}
+
 func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
 	state := "opened"
 	opts := &gl.ListProjectMergeRequestsOptions{
@@ -143,19 +221,40 @@ func (p *Provider) PostSummaryNote(projectID string, mrIID int64, body string) e
 
 func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.DiffRefs, comment vcs.InlineComment) error {
 	posType := "text"
+	filePath := comment.FilePath
+	oldLine := comment.OldLine
+	position := &gl.PositionOptions{
+		BaseSHA:      &refs.BaseSHA,
+		HeadSHA:      &refs.HeadSHA,
+		StartSHA:     &refs.StartSHA,
+		PositionType: &posType,
+		NewPath:      &filePath,
+		OldPath:      &filePath,
+		NewLine:      &comment.NewLine,
+	}
+	if oldLine > 0 {
+		position.OldLine = &oldLine
+	}
+
 	_, _, err := p.api.Discussions.CreateMergeRequestDiscussion(projectID, mrIID, &gl.CreateMergeRequestDiscussionOptions{
-		Body: &comment.Body,
-		Position: &gl.PositionOptions{
-			BaseSHA:      &refs.BaseSHA,
-			HeadSHA:      &refs.HeadSHA,
-			StartSHA:     &refs.StartSHA,
-			PositionType: &posType,
-			NewPath:      &comment.FilePath,
-			NewLine:      &comment.NewLine,
-		},
+		Body:     &comment.Body,
+		Position: position,
 	})
 	if err != nil {
 		return fmt.Errorf("gitlab: failed to post inline discussion: %w", err)
+	}
+	return nil
+}
+
+func (p *Provider) ReplyToMRDiscussion(projectID string, mrIID int64, discussionID, body string) error {
+	_, _, err := p.api.Discussions.AddMergeRequestDiscussionNote(
+		projectID,
+		mrIID,
+		discussionID,
+		&gl.AddMergeRequestDiscussionNoteOptions{Body: &body},
+	)
+	if err != nil {
+		return fmt.Errorf("gitlab: failed to reply to discussion %s: %w", discussionID, err)
 	}
 	return nil
 }

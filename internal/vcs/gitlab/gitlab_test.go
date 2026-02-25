@@ -72,6 +72,18 @@ func TestFetchMRDiffs(t *testing.T) {
 	assert.Contains(t, diffs[0].Diff, "import")
 }
 
+func TestFetchMRRawDiff(t *testing.T) {
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.Path, "merge_requests/42/raw_diffs")
+		_, _ = w.Write([]byte("diff --git a/main.go b/main.go\n@@ -1,1 +1,2 @@\n package main\n+import \"fmt\"\n"))
+	}))
+
+	raw, err := p.FetchMRRawDiff("grp/proj", 42)
+	require.NoError(t, err)
+	assert.Contains(t, raw, "diff --git")
+	assert.Contains(t, raw, "@@ -1,1 +1,2 @@")
+}
+
 func TestPostSummaryNote(t *testing.T) {
 	var gotBody string
 	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -94,7 +106,7 @@ func TestPostInlineComment(t *testing.T) {
 	}))
 
 	refs := vcs.DiffRefs{BaseSHA: "aaa", HeadSHA: "bbb", StartSHA: "ccc"}
-	comment := vcs.InlineComment{FilePath: "main.go", NewLine: 10, Body: "Fix this"}
+	comment := vcs.InlineComment{FilePath: "main.go", NewLine: 10, OldLine: 9, Body: "Fix this"}
 
 	err := p.PostInlineComment("grp/proj", 42, refs, comment)
 	require.NoError(t, err)
@@ -105,6 +117,7 @@ func TestPostInlineComment(t *testing.T) {
 	assert.Equal(t, "aaa", pos["base_sha"])
 	assert.Equal(t, "main.go", pos["new_path"])
 	assert.Equal(t, float64(10), pos["new_line"])
+	assert.Equal(t, float64(9), pos["old_line"])
 }
 
 func TestListOpenMRs(t *testing.T) {
@@ -136,6 +149,72 @@ func TestListOpenMRs(t *testing.T) {
 	assert.Len(t, mrs, 2)
 	assert.Equal(t, "MR one", mrs[0].Title)
 	assert.Equal(t, "dev2", mrs[1].Author)
+}
+
+func TestListMRDiscussions(t *testing.T) {
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{
+				"id": "d1",
+				"notes": []map[string]interface{}{
+					{
+						"id":         10,
+						"body":       "[HIGH] issue",
+						"resolvable": true,
+						"resolved":   false,
+						"author":     map[string]interface{}{"username": "bot"},
+						"position": map[string]interface{}{
+							"new_path": "public/index.php",
+							"new_line": 29,
+						},
+					},
+				},
+			},
+		})
+	}))
+
+	discussions, err := p.ListMRDiscussions("grp/proj", 42)
+	require.NoError(t, err)
+	require.Len(t, discussions, 1)
+	require.Len(t, discussions[0].Notes, 1)
+	assert.Equal(t, "d1", discussions[0].ID)
+	assert.Equal(t, "bot", discussions[0].Notes[0].Author)
+	assert.Equal(t, "public/index.php", discussions[0].Notes[0].FilePath)
+	assert.Equal(t, 29, discussions[0].Notes[0].Line)
+}
+
+func TestListMRNotes(t *testing.T) {
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{
+				"id":     101,
+				"body":   "@ange.saadjio pause",
+				"author": map[string]interface{}{"username": "maintainer"},
+			},
+		})
+	}))
+
+	notes, err := p.ListMRNotes("grp/proj", 42)
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+	assert.Equal(t, int64(101), notes[0].ID)
+	assert.Equal(t, "maintainer", notes[0].Author)
+	assert.Contains(t, notes[0].Body, "pause")
+}
+
+func TestReplyToMRDiscussion(t *testing.T) {
+	var gotBody string
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.Path, "/discussions/d1/notes")
+		var req map[string]interface{}
+		json.NewDecoder(r.Body).Decode(&req)
+		gotBody, _ = req["body"].(string)
+		json.NewEncoder(w).Encode(map[string]interface{}{"id": 11})
+	}))
+
+	err := p.ReplyToMRDiscussion("grp/proj", 42, "d1", "reply")
+	require.NoError(t, err)
+	assert.Equal(t, "reply", gotBody)
 }
 
 func TestValidate_EmptyToken(t *testing.T) {
