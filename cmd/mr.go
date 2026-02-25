@@ -39,21 +39,34 @@ func resolveVCSProvider(cmd *cobra.Command) (vcs.VCSProvider, error) {
 		}
 	}
 
-	token, _ := cmd.Flags().GetString("gitlab-token")
-	baseURL, _ := cmd.Flags().GetString("gitlab-url")
+	var token, baseURL string
 
-	// Fall back to env vars
-	if token == "" {
-		switch vcsName {
-		case "gitlab":
+	switch vcsName {
+	case "gitlab":
+		token, _ = cmd.Flags().GetString("gitlab-token")
+		baseURL, _ = cmd.Flags().GetString("gitlab-url")
+		if token == "" {
 			token = os.Getenv("GITLAB_TOKEN")
-		case "github":
+		}
+		if baseURL == "" {
+			baseURL = os.Getenv("GITLAB_URL")
+		}
+	case "github":
+		token, _ = cmd.Flags().GetString("github-token")
+		baseURL, _ = cmd.Flags().GetString("github-url")
+		if token == "" {
 			token = os.Getenv("GITHUB_TOKEN")
 		}
-	}
-	if baseURL == "" {
-		switch vcsName {
-		case "gitlab":
+		if baseURL == "" {
+			baseURL = os.Getenv("GITHUB_API_URL")
+		}
+	default:
+		token, _ = cmd.Flags().GetString("gitlab-token")
+		baseURL, _ = cmd.Flags().GetString("gitlab-url")
+		if token == "" {
+			token = os.Getenv("GITLAB_TOKEN")
+		}
+		if baseURL == "" {
 			baseURL = os.Getenv("GITLAB_URL")
 		}
 	}
@@ -179,6 +192,8 @@ func newMRReviewCmd() *cobra.Command {
 	cmd.Flags().Bool("summary-only", false, "Post only a summary comment, no inline comments")
 	cmd.Flags().String("gitlab-token", "", "GitLab personal access token (or use GITLAB_TOKEN env)")
 	cmd.Flags().String("gitlab-url", "", "GitLab instance URL (or use GITLAB_URL env, default: https://gitlab.com)")
+	cmd.Flags().String("github-token", "", "GitHub token (or use GITHUB_TOKEN env)")
+	cmd.Flags().String("github-url", "", "GitHub API base URL (or use GITHUB_API_URL env, default: https://api.github.com)")
 	cmd.Flags().String("vcs", "", "VCS provider (gitlab, github; auto-detected from env)")
 	cmd.Flags().String("strictness", "", "Review strictness: strict, normal, lenient (default: normal)")
 

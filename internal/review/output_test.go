@@ -131,3 +131,30 @@ func TestFormatBranchReview_SeverityCounting(t *testing.T) {
 	assert.Greater(t, medIdx, highIdx)
 	assert.Greater(t, lowIdx, medIdx)
 }
+
+func TestFormatMultiCommitReview(t *testing.T) {
+	result := &MultiCommitReviewResult{
+		BranchName: "feature",
+		BaseBranch: "main",
+		Commits: []CommitReviewResult{
+			{
+				CommitHash:    "abc123",
+				CommitSubject: "add feature",
+				Walkthrough: WalkthroughResult{
+					Summary: "Adds a new feature.",
+				},
+				FileReviews:    []FileReviewResult{{FilePath: "main.go"}},
+				TotalFiles:     1,
+				TotalAdditions: 10,
+				TotalDeletions: 2,
+			},
+		},
+	}
+
+	output := FormatMultiCommitReview(result)
+
+	assert.Contains(t, output, "Branch Review (Per-Commit)")
+	assert.Contains(t, output, "Commit abc123 - add feature")
+	assert.Contains(t, output, "Walkthrough")
+	assert.Contains(t, output, "Statistics")
+}

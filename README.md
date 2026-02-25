@@ -184,6 +184,7 @@ export GITLAB_URL=https://gitlab.com   # optional, defaults to gitlab.com
 
 # GitHub
 export GITHUB_TOKEN=ghp_xxxx
+export GITHUB_API_URL=https://api.github.com   # optional, for GitHub Enterprise use https://ghe.example.com/api/v3
 
 # Review an MR (prints review to terminal)
 prev mr review my-group/my-project 42 --dry-run
@@ -210,6 +211,8 @@ prev mr review my-group/my-project 42 --strictness strict
 | `--vcs` | VCS provider: `gitlab`, `github` (auto-detected from env) |
 | `--gitlab-token` | GitLab token (or use `GITLAB_TOKEN` env) |
 | `--gitlab-url` | GitLab instance URL (or use `GITLAB_URL` env) |
+| `--github-token` | GitHub token (or use `GITHUB_TOKEN` env) |
+| `--github-url` | GitHub API base URL (or use `GITHUB_API_URL` env) |
 | `--strictness` | Review strictness: `strict`, `normal`, `lenient` |
 
 ### AI Providers

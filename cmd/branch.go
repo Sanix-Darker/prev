@@ -81,11 +81,14 @@ func runEnhancedBranch(conf config.Config, cmd *cobra.Command, branchName, repoP
 	contextLines, _ := cmd.Flags().GetInt("context")
 	maxTokens, _ := cmd.Flags().GetInt("max-tokens")
 	serenaMode, _ := cmd.Flags().GetString("serena")
+	perCommit, _ := cmd.Flags().GetBool("per-commit")
 
 	cfg := review.ReviewConfig{
 		ContextLines:   contextLines,
 		MaxBatchTokens: maxTokens,
 		Strictness:     conf.Strictness,
+		CommitByCommit: perCommit,
+		PathFilter:     gitPath,
 		SerenaMode:     serenaMode,
 		Debug:          conf.Debug,
 	}
@@ -97,6 +100,17 @@ func runEnhancedBranch(conf config.Config, cmd *cobra.Command, branchName, repoP
 		} else {
 			fmt.Fprintf(os.Stderr, "[%s]\n", stage)
 		}
+	}
+
+	if perCommit {
+		result, err := handlers.ExtractBranchReviewPerCommit(p, branchName, repoPath, gitPath, cfg, onProgress)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		output := review.FormatMultiCommitReview(result)
+		fmt.Print(renders.RenderMarkdown(output))
+		return
 	}
 
 	result, err := handlers.ExtractBranchReview(p, branchName, repoPath, gitPath, cfg, onProgress)

@@ -92,6 +92,15 @@ func bindProviderEnvVars(name string, v *viper.Viper) {
 	}
 }
 
+// BindProviderEnvDefaults applies environment variable defaults for a provider.
+// Useful when creating a fresh viper instance (e.g. for listing providers).
+func BindProviderEnvDefaults(name string, v *viper.Viper) {
+	if v == nil {
+		return
+	}
+	bindProviderEnvVars(name, v)
+}
+
 func envOrDefault(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

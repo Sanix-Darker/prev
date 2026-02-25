@@ -4,5 +4,6 @@
 package init
 
 import (
+	_ "github.com/sanix-darker/prev/internal/vcs/github"
 	_ "github.com/sanix-darker/prev/internal/vcs/gitlab"
 )

@@ -90,6 +90,19 @@ func GetDiffStat(repoPath, baseBranch, targetBranch string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// GetDiffStatForCommit returns the diff stat summary for a single commit.
+func GetDiffStatForCommit(repoPath, commitHash string) (string, error) {
+	cmd := exec.Command("git", "-C", repoPath, "show", "--stat", "--format=", commitHash)
+	out, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("git show --stat failed: %s", string(exitErr.Stderr))
+		}
+		return "", fmt.Errorf("git show --stat failed: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // GetBaseBranch tries to determine the base branch of the repo (main or master).
 func GetBaseBranch(repoPath string) string {
 	cmd := exec.Command("git", "-C", repoPath, "symbolic-ref", "refs/remotes/origin/HEAD", "--short")
