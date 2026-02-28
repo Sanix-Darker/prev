@@ -264,6 +264,39 @@ func TestRefineInlinePositionByMessage_PrefersMatchingAddedLine(t *testing.T) {
 	assert.Equal(t, 0, refinedOld)
 }
 
+func TestRefineInlinePositionByMessage_KeepExactAddedAnchor(t *testing.T) {
+	changes := []diffparse.FileChange{
+		{
+			NewName: "public/index.php",
+			Hunks: []diffparse.Hunk{
+				{
+					NewStart: 30,
+					NewLines: 4,
+					Lines: []diffparse.DiffLine{
+						{Type: diffparse.LineAdded, OldLineNo: 0, NewLineNo: 30, Content: "echo json_encode(['error' => 'Unknown action']);"},
+						{Type: diffparse.LineAdded, OldLineNo: 0, NewLineNo: 31, Content: "echo json_decode(['error' => 'Unknown action']);"},
+					},
+				},
+			},
+		},
+	}
+
+	pos := collectValidPositions(changes)
+	newLine, old, ok := resolveInlinePosition(pos, "public/index.php", 31)
+	require.True(t, ok)
+	require.Equal(t, 31, newLine)
+	require.Equal(t, 0, old)
+
+	refinedLine, refinedOld := refineInlinePositionByMessage(
+		pos["public/index.php"],
+		31,
+		newLine,
+		"[HIGH] json_decode() expects a JSON string, but receives an array.",
+	)
+	assert.Equal(t, 31, refinedLine)
+	assert.Equal(t, 0, refinedOld)
+}
+
 func TestIsMRPaused_RespectsPauseResumeOrder(t *testing.T) {
 	notes := []vcs.MRNote{
 		{Body: "@ange.saadjio pause"},

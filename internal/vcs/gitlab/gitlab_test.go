@@ -116,8 +116,34 @@ func TestPostInlineComment(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "aaa", pos["base_sha"])
 	assert.Equal(t, "main.go", pos["new_path"])
+	assert.Equal(t, "main.go", pos["old_path"])
 	assert.Equal(t, float64(10), pos["new_line"])
 	assert.Equal(t, float64(9), pos["old_line"])
+}
+
+func TestPostInlineComment_UsesExplicitOldPath(t *testing.T) {
+	var gotReq map[string]interface{}
+	p := newTestProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&gotReq)
+		json.NewEncoder(w).Encode(map[string]interface{}{"id": "disc-1"})
+	}))
+
+	refs := vcs.DiffRefs{BaseSHA: "aaa", HeadSHA: "bbb", StartSHA: "ccc"}
+	comment := vcs.InlineComment{
+		FilePath: "new/name.go",
+		OldPath:  "old/name.go",
+		NewLine:  10,
+		OldLine:  9,
+		Body:     "Fix this",
+	}
+
+	err := p.PostInlineComment("grp/proj", 42, refs, comment)
+	require.NoError(t, err)
+
+	pos, ok := gotReq["position"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "new/name.go", pos["new_path"])
+	assert.Equal(t, "old/name.go", pos["old_path"])
 }
 
 func TestListOpenMRs(t *testing.T) {

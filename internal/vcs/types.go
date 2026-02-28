@@ -57,6 +57,7 @@ type FileDiff struct {
 // InlineComment holds data for posting an inline comment on a diff.
 type InlineComment struct {
 	FilePath string
+	OldPath  string
 	NewLine  int64
 	OldLine  int64
 	Body     string

@@ -307,13 +307,17 @@ func (p *Provider) PostSummaryNote(projectID string, mrIID int64, body string) e
 }
 
 func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.DiffRefs, comment vcs.InlineComment) error {
+	oldPath := strings.TrimSpace(comment.OldPath)
+	if oldPath == "" {
+		oldPath = comment.FilePath
+	}
 	position := map[string]interface{}{
 		"base_sha":      refs.BaseSHA,
 		"head_sha":      refs.HeadSHA,
 		"start_sha":     refs.StartSHA,
 		"position_type": "text",
 		"new_path":      comment.FilePath,
-		"old_path":      comment.FilePath,
+		"old_path":      oldPath,
 		"new_line":      comment.NewLine,
 	}
 	if comment.OldLine > 0 {

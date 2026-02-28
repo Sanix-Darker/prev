@@ -401,11 +401,11 @@ func newMRReviewCmd() *cobra.Command {
 					fileComments = rawComments
 				}
 				fileComments = aggregateCommentsByChange(fileComments)
-				inlineGroups, unplaced := aggregateCommentsByHunk(fileComments, validPositionsByFile)
+				inlineGroups, unplaced := aggregateCommentsByLine(fileComments, validPositionsByFile)
 				if len(inlineGroups) == 0 && len(fileComments) > 0 {
-					fallbackGroups, fallbackUnplaced := aggregateCommentsByLine(fileComments, validPositionsByFile)
+					fallbackGroups, fallbackUnplaced := aggregateCommentsByHunk(fileComments, validPositionsByFile)
 					if len(fallbackGroups) > 0 {
-						fmt.Println("Inline placement fallback: hunk grouping produced no placeable comments; using line-level grouping.")
+						fmt.Println("Inline placement fallback: line-level grouping produced no placeable comments; using hunk-level grouping.")
 						inlineGroups = fallbackGroups
 					}
 					if len(fallbackUnplaced) > 0 {
@@ -461,6 +461,7 @@ func newMRReviewCmd() *cobra.Command {
 						review.MR.DiffRefs,
 						vcs.InlineComment{
 							FilePath: grp.FilePath,
+							OldPath:  validPositionsByFile[grp.FilePath].oldPath,
 							NewLine:  int64(grp.NewLine),
 							OldLine:  int64(grp.OldLine),
 							Body:     body,
@@ -598,6 +599,7 @@ type hunkRange struct {
 }
 
 type inlinePositions struct {
+	oldPath  string
 	oldByNew map[int]int
 	added    map[int]struct{}
 	content  map[int]string
@@ -618,6 +620,9 @@ func collectValidPositions(changes []diffparse.FileChange) map[string]inlinePosi
 				added:    make(map[int]struct{}),
 				content:  make(map[int]string),
 			}
+		}
+		if fp.oldPath == "" {
+			fp.oldPath = c.OldName
 		}
 		for _, h := range c.Hunks {
 			hStart := h.NewStart
@@ -666,6 +671,12 @@ func refineInlinePositionByMessage(fp inlinePositions, requestedLine, currentLin
 	if len(fp.added) == 0 || strings.TrimSpace(message) == "" {
 		return currentLine, fp.oldByNew[currentLine]
 	}
+	// Keep exact added-line anchors stable; refinement is only for snapped/fallback anchors.
+	if requestedLine == currentLine {
+		if _, ok := fp.added[currentLine]; ok {
+			return currentLine, fp.oldByNew[currentLine]
+		}
+	}
 	tokens := anchorTokensFromMessage(message)
 	if len(tokens) == 0 {
 		return currentLine, fp.oldByNew[currentLine]
@@ -697,6 +708,10 @@ func refineInlinePositionByMessage(fp inlinePositions, requestedLine, currentLin
 	for _, ln := range candidates {
 		content := strings.ToLower(strings.TrimSpace(fp.content[ln]))
 		if content == "" {
+			continue
+		}
+		// Avoid anchoring to distant lines when refining.
+		if absInt(ln-requestedLine) > 6 {
 			continue
 		}
 		score := 0
@@ -1067,6 +1082,7 @@ func processNoteReplyCommands(
 		}
 		if err := vcsProvider.PostInlineComment(projectID, mrIID, mr.DiffRefs, vcs.InlineComment{
 			FilePath: path,
+			OldPath:  validPositionsByFile[path].oldPath,
 			NewLine:  int64(newLine),
 			OldLine:  int64(oldLine),
 			Body:     body,
