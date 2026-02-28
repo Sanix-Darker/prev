@@ -82,12 +82,23 @@ func bindProviderEnvVars(name string, v *config.Store) {
 		overrideFromEnv(v, "api_key", "ANTHROPIC_API_KEY")
 		overrideFromEnv(v, "model", "ANTHROPIC_MODEL")
 		overrideFromEnv(v, "base_url", "ANTHROPIC_API_BASE")
+		// Backward-compatible alias used in some docs/examples.
+		overrideFromEnv(v, "base_url", "ANTHROPIC_BASE_URL")
 	case "azure":
 		v.SetDefault("api_version", "2024-02-01")
 		overrideFromEnv(v, "api_key", "AZURE_OPENAI_API_KEY")
 		overrideFromEnv(v, "model", "AZURE_OPENAI_MODEL")
+		// Backward-compatible alias used in some docs/examples.
+		overrideFromEnv(v, "model", "AZURE_OPENAI_DEPLOYMENT")
 		overrideFromEnv(v, "base_url", "AZURE_OPENAI_ENDPOINT")
 		overrideFromEnv(v, "api_version", "AZURE_OPENAI_API_VERSION")
+	case "gemini":
+		// Gemini via Google's OpenAI-compatible endpoint.
+		v.SetDefault("model", "gemini-2.0-flash")
+		v.SetDefault("base_url", "https://generativelanguage.googleapis.com/v1beta/openai")
+		overrideFromEnv(v, "api_key", "GEMINI_API_KEY")
+		overrideFromEnv(v, "model", "GEMINI_MODEL")
+		overrideFromEnv(v, "base_url", "GEMINI_BASE_URL")
 	default:
 		// Generic / OpenAI-compatible: try PREV_<PROVIDER>_* env vars.
 		prefix := strings.ToUpper(name)
@@ -107,7 +118,7 @@ func overrideFromEnv(v *config.Store, key, envName string) {
 // provider settings. It is used by the "prev init" or "prev config" command.
 func SampleConfigYAML() string {
 	return `# prev configuration
-# Active provider (openai | anthropic | azure | ollama | custom).
+# Active provider (openai | anthropic | azure | gemini | ollama | custom).
 provider: openai
 
 # Provider-specific settings. Each block corresponds to a registered provider.
@@ -133,6 +144,14 @@ providers:
     base_url: ""  # e.g. https://<resource>.openai.azure.com
     model: ""     # deployment name
     api_version: "2024-02-01"
+    max_tokens: 1024
+    timeout: 30s
+
+  gemini:
+    # api_key can also be set via GEMINI_API_KEY env var.
+    api_key: ""
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    model: "gemini-2.0-flash"
     max_tokens: 1024
     timeout: 30s
 

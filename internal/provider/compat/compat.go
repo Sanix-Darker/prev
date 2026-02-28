@@ -47,7 +47,7 @@ func init() {
 	// register arbitrary names through the config file; the Resolve logic in
 	// provider/config.go will fall back to this factory when the name does
 	// not match a specifically-registered provider.
-	for _, name := range []string{"ollama", "groq", "together", "lmstudio", "openai-compat"} {
+	for _, name := range []string{"ollama", "groq", "together", "lmstudio", "openai-compat", "gemini"} {
 		provider.Register(name, newFactory(name))
 	}
 }
@@ -159,10 +159,10 @@ func NewProvider(name string, v *config.Store) (provider.AIProvider, error) {
 // Info returns provider metadata.
 func (p *Provider) Info() provider.ProviderInfo {
 	return provider.ProviderInfo{
-		Name:             p.name,
-		DisplayName:      strings.Title(p.name) + " (OpenAI-compatible)", //nolint:staticcheck
-		Description:      fmt.Sprintf("OpenAI-compatible endpoint (%s)", p.baseURL),
-		DefaultModel:     p.model,
+		Name:              p.name,
+		DisplayName:       strings.Title(p.name) + " (OpenAI-compatible)", //nolint:staticcheck
+		Description:       fmt.Sprintf("OpenAI-compatible endpoint (%s)", p.baseURL),
+		DefaultModel:      p.model,
 		SupportsStreaming: true,
 	}
 }

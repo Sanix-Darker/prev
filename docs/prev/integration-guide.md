@@ -130,13 +130,10 @@ docker run --rm \
 | Provider | Key Variable | Model Variable | Base URL Variable |
 |----------|-------------|----------------|-------------------|
 | OpenAI | `OPENAI_API_KEY` | `OPENAI_API_MODEL` | `OPENAI_API_BASE` |
-| Anthropic | `ANTHROPIC_API_KEY` | `ANTHROPIC_MODEL` | `ANTHROPIC_BASE_URL` |
-| Azure | `AZURE_OPENAI_API_KEY` | `AZURE_OPENAI_DEPLOYMENT` | `AZURE_OPENAI_ENDPOINT` |
-| Ollama | — | `OLLAMA_MODEL` | `OLLAMA_BASE_URL` |
-| Groq | `GROQ_API_KEY` | `GROQ_MODEL` | — |
-| Together | `TOGETHER_API_KEY` | `TOGETHER_MODEL` | — |
-| LM Studio | — | `LMSTUDIO_MODEL` | `LMSTUDIO_BASE_URL` |
-| OpenAI-compat | `OPENAI_COMPAT_API_KEY` | `OPENAI_COMPAT_MODEL` | `OPENAI_COMPAT_BASE_URL` |
+| Anthropic | `ANTHROPIC_API_KEY` | `ANTHROPIC_MODEL` | `ANTHROPIC_API_BASE` (`ANTHROPIC_BASE_URL` alias) |
+| Azure | `AZURE_OPENAI_API_KEY` | `AZURE_OPENAI_MODEL` (`AZURE_OPENAI_DEPLOYMENT` alias) | `AZURE_OPENAI_ENDPOINT` |
+| Gemini | `GEMINI_API_KEY` | `GEMINI_MODEL` | `GEMINI_BASE_URL` |
+| Generic compat (ollama/groq/together/lmstudio/openai-compat) | `PREV_<PROVIDER>_API_KEY` | `PREV_<PROVIDER>_MODEL` | `PREV_<PROVIDER>_BASE_URL` |
 
 ### Config File
 

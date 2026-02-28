@@ -5,7 +5,7 @@ AI-powered code review CLI tool for diffs, commits, branches, and merge/pull req
 [![ci](https://github.com/sanix-darker/prev/actions/workflows/ci.yml/badge.svg)](https://github.com/sanix-darker/prev/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/sanix-darker/prev)](https://goreportcard.com/report/github.com/sanix-darker/prev)
 
-Supports multiple AI providers: **OpenAI**, **Anthropic (Claude)**, **Azure OpenAI**, **Ollama**, **Groq**, **Together**, **LM Studio**, and any **OpenAI-compatible** API.
+Supports multiple AI providers: **OpenAI**, **Anthropic (Claude)**, **Azure OpenAI**, **Gemini**, **Ollama**, **Groq**, **Together**, **LM Studio**, and any **OpenAI-compatible** API.
 
 ### Installation
 
@@ -82,6 +82,8 @@ prev branch feature-branch --strictness strict
 | `prev ai show` | Show current provider and model |
 | `prev config show` | Show current configuration |
 | `prev config init` | Create default config file |
+| `prev config effective` | Show merged effective configuration (with env/flags applied) |
+| `prev config validate` | Validate configuration keys and provider requirements |
 | `prev version` | Print version info |
 
 ### Branch Review Pipeline
@@ -223,7 +225,7 @@ prev mr review my-group/my-project 42 --strictness strict
 | `--gitlab-url` | GitLab instance URL (or use `GITLAB_URL` env) |
 | `--strictness` | Review strictness: `strict`, `normal`, `lenient` |
 | `--max-comments` | Max inline comments to post (0 = unlimited; prioritizes highest severity) |
-| `--review-passes` | Number of AI review passes (0 = config/default `2`) |
+| `--review-passes` | Number of AI review passes (0 = config/default `1`) |
 | `--serena` | Serena MCP mode for MR context: `auto`, `on`, `off` |
 | `--context` | Number of surrounding context lines used for MR enrichment |
 | `--max-tokens` | Max token budget used by MR context enrichment |
@@ -331,6 +333,10 @@ prev diff file1.py,file2.py --provider together --model meta-llama/Llama-3-70b-c
 # LM Studio
 prev diff file1.py,file2.py --provider lmstudio --model local-model
 
+# Gemini (OpenAI-compatible endpoint)
+export GEMINI_API_KEY=xxx
+prev diff file1.py,file2.py --provider gemini --model gemini-2.0-flash
+
 # Any OpenAI-compatible endpoint
 export OPENAI_COMPAT_API_KEY=xxx
 export OPENAI_COMPAT_BASE_URL=https://your-api.example.com/v1
@@ -349,7 +355,7 @@ Full config example:
 
 ```yaml
 # prev configuration
-# Active provider (openai | anthropic | azure | ollama | custom).
+# Active provider (openai | anthropic | azure | gemini | ollama | custom).
 provider: openai
 
 # Provider-specific settings. Each block corresponds to a registered provider.
@@ -378,6 +384,14 @@ providers:
     max_tokens: 1024
     timeout: 30s
 
+  gemini:
+    # api_key can also be set via GEMINI_API_KEY env var.
+    api_key: ""
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    model: "gemini-2.0-flash"
+    max_tokens: 1024
+    timeout: 30s
+
   # Example: self-hosted Ollama or any OpenAI-compatible endpoint.
   ollama:
     base_url: "http://localhost:11434/v1"
@@ -392,6 +406,41 @@ retry:
   max_interval: 30s
   multiplier: 2.0
 
+# Review policy and conventions.
+review:
+  # 1: critical only, 10: include nits and minor suggestions.
+  nitpick: 5
+  # Optional strictness default for MR review when CLI flag is not provided.
+  # Allowed: strict | normal | lenient
+  # strictness: "normal"
+  # Number of AI review passes (re-review loop) for MR review.
+  passes: 1
+  # Maximum inline comments for MR review (0 = unlimited).
+  max_comments: 0
+  # Inline filtering mode: added | diff_context | file | nofilter
+  filter_mode: "diff_context"
+  # MR diff source strategy: auto | git | raw | api
+  mr_diff_source: "auto"
+  # Enable structured JSON findings output parsing (with markdown fallback).
+  structured_output: false
+  # Enable incremental review scope using baseline markers.
+  incremental: false
+  # Post inline comments only (skip summary notes and thread replies).
+  inline_only: false
+  # Optional Serena/context defaults for MR review.
+  # serena_mode: "auto"
+  # context_lines: 10
+  # max_tokens: 80000
+  # Optional @mention handle used by MR thread commands, e.g. "@my-bot review".
+  # When empty, mention-driven actions are disabled.
+  mention_handle: ""
+  conventions:
+    labels: ["issue", "suggestion", "remark"]
+  # Optional custom instructions injected into review prompts.
+  guidelines: |
+    Prioritize correctness, security, and maintainability.
+    Keep findings concrete and actionable.
+
 # Display options.
 debug: false
 max_key_points: 3
@@ -403,7 +452,7 @@ explain: false
 
 | Flag | Description |
 |------|-------------|
-| `--provider, -P` | AI provider to use (openai, anthropic, azure, ollama, etc.) |
+| `--provider, -P` | AI provider to use (openai, anthropic, azure, gemini, ollama, etc.) |
 | `--model, -m` | Model to use for the AI provider |
 | `--stream, -s` | Enable streaming output (default: true) |
 | `--strictness` | Review strictness: `strict`, `normal`, `lenient` (default: normal) |

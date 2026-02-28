@@ -28,7 +28,7 @@
 ### AI Provider System
 
 - **Pluggable architecture**: Registry/factory pattern for provider discovery
-- **8 supported providers**: OpenAI, Anthropic (Claude), Azure OpenAI, Ollama, Groq, Together, LM Studio, and any OpenAI-compatible API
+- **9 supported providers**: OpenAI, Anthropic (Claude), Azure OpenAI, Gemini, Ollama, Groq, Together, LM Studio, and any OpenAI-compatible API
 - **Unified interface**: All providers implement the same `AIProvider` interface with blocking and streaming modes
 - **Provider resolution**: CLI flag > `PREV_PROVIDER` env > config file > openai fallback
 
