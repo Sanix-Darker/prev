@@ -1,26 +1,15 @@
-//go:generate bash get_build_info.sh
-
 package version
 
 import (
-	// using blank import for embed as it is only used inside comments
-	_ "embed"
 	"fmt"
 	"runtime"
 )
 
 var (
-	// GitCommit returns the git commit that was compiled.
-	//go:embed commit.txt
-	gitCommit string
-
-	// Version returns the main version number that is being run at the moment.
-	//go:embed version.txt
-	version string
-
-	// BuildDate returns the date the binary was built
-	//go:embed build_date.txt
-	buildDate string
+	// Set via -ldflags at release time; safe defaults keep local/module builds installable.
+	gitCommit = "unknown"
+	version   = "dev"
+	buildDate = "1970-01-01 00:00:00 +0000"
 )
 
 // GoVersion returns the version of the go runtime used to compile the binary
