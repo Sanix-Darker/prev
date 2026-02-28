@@ -20,9 +20,6 @@
 coverage.txt
 
 # build files
-internal/cmd/version/commit.txt
-internal/cmd/version/version.txt
-internal/cmd/version/build_date.txt
 prev
 !docs/prev
 prev*.tar.gz
