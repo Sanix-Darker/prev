@@ -1,0 +1,39 @@
+name: prev-pr-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install prev
+        run: go install github.com/sanix-darker/prev@latest
+
+      - name: Configure prev
+        run: |
+          mkdir -p "$HOME/.config/prev"
+          cp examples/configs/v1-minimal-openai.yml "$HOME/.config/prev/config.yml"
+          prev config validate
+
+      - name: Run PR review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          prev mr review "${{ github.repository }}" "${{ github.event.pull_request.number }}" --vcs github --strictness normal
+

@@ -1,0 +1,18 @@
+provider: openai
+
+providers:
+  openai:
+    api_key: ""
+    model: "gpt-4o"
+    max_tokens: 1024
+    timeout: 30s
+
+review:
+  strictness: normal
+  passes: 1
+  filter_mode: diff_context
+  mr_diff_source: auto
+
+debug: false
+stream: true
+

@@ -1,0 +1,31 @@
+provider: openai
+
+providers:
+  openai:
+    model: "gpt-5.2-chat-latest"
+    max_tokens: 1024
+    timeout: 40s
+
+retry:
+  max_retries: 2
+  initial_interval: 1s
+  max_interval: 10s
+  multiplier: 2.0
+
+review:
+  strictness: strict
+  nitpick: 3
+  passes: 1
+  max_comments: 20
+  filter_mode: added
+  mr_diff_source: auto
+  structured_output: true
+  incremental: false
+  inline_only: false
+  mention_handle: "project_bot"
+  conventions:
+    labels: ["issue", "suggestion", "remark"]
+
+debug: false
+stream: false
+

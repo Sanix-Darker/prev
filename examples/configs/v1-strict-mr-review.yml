@@ -1,0 +1,30 @@
+provider: openai
+
+providers:
+  openai:
+    model: "gpt-4o"
+    max_tokens: 2048
+    timeout: 45s
+
+review:
+  strictness: strict
+  nitpick: 8
+  passes: 2
+  max_comments: 30
+  filter_mode: diff_context
+  mr_diff_source: auto
+  structured_output: true
+  incremental: true
+  inline_only: false
+  serena_mode: auto
+  context_lines: 12
+  max_tokens: 80000
+  conventions:
+    labels: ["issue", "suggestion", "remark"]
+  guidelines: |
+    Focus first on correctness and security.
+    Keep comments concrete and anchored to changed lines.
+
+debug: false
+stream: true
+

@@ -1,0 +1,19 @@
+provider: gemini
+
+providers:
+  gemini:
+    api_key: ""
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    model: "gemini-2.0-flash"
+    max_tokens: 1024
+    timeout: 30s
+
+review:
+  strictness: normal
+  passes: 1
+  filter_mode: diff_context
+  mr_diff_source: auto
+
+debug: false
+stream: true
+

@@ -351,6 +351,11 @@ Create a config file at `~/.config/prev/config.yml`:
 prev config init
 ```
 
+Additional repository resources:
+
+- `context_prev.md`: deep technical onboarding context for code agents/maintainers
+- `examples/configs/*.yml`: ready-to-use config profiles (CI, strict MR, Gemini, local ollama, minimal)
+
 Full config example:
 
 ```yaml
