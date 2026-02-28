@@ -14,7 +14,6 @@ jobs:
     env:
       FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
       # Explicit opt-in. Set repository variable ENABLE_HOMEBREW=true to publish tap formula.
       ENABLE_HOMEBREW: ${{ vars.ENABLE_HOMEBREW }}
     steps:
@@ -27,6 +26,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Run GoReleaser
+        if: ${{ vars.ENABLE_HOMEBREW == 'true' }}
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
@@ -36,3 +36,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
           ENABLE_HOMEBREW: ${{ vars.ENABLE_HOMEBREW }}
+
+      - name: Run GoReleaser (No Homebrew)
+        if: ${{ vars.ENABLE_HOMEBREW != 'true' }}
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean --config .goreleaser.nohomebrew.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

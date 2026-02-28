@@ -63,27 +63,6 @@ archives:
       - completions/*
       - manpages/*
 
-brews:
-  - repository:
-      owner: sanix-darker
-      name: homebrew-tap
-      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
-    goarm: "7"
-    homepage: https://github.com/sanix-darker/prev
-    description: AI-powered code review CLI tool
-    license: Apache 2.0
-    test: |
-      system "#{bin}/prev version"
-    dependencies:
-      - name: go
-        type: optional
-    install: |-
-      bin.install "prev"
-      bash_completion.install "completions/prev.bash" => "prev"
-      zsh_completion.install "completions/prev.zsh" => "_prev"
-      fish_completion.install "completions/prev.fish"
-      man1.install "manpages/prev.1.gz"
-
 nfpms:
   - file_name_template: "{{ .ConventionalFileName }}"
     id: packages
