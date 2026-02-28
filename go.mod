@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/MichaelMure/go-term-markdown v0.1.4
 	github.com/atotto/clipboard v0.1.4
-	github.com/briandowns/spinner v1.23.0
+	github.com/briandowns/spinner v1.23.2
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
