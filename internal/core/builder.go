@@ -8,7 +8,6 @@ import (
 
 	"github.com/sanix-darker/prev/internal/common"
 	"github.com/sanix-darker/prev/internal/config"
-	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
 // BuildReviewPrompt build the prompt to ask the AI
@@ -139,24 +138,100 @@ func BuildDiff(filePath1, filePath2 string) (string, error) {
 		return "", err
 	}
 
-	// Compare the contents using diff-match-patch
-	dmp := diffmatchpatch.New()
-	diffs := dmp.DiffMain(string(content1), string(content2), true)
+	oldLines := splitLines(string(content1))
+	newLines := splitLines(string(content2))
+	ops := computeLineDiff(oldLines, newLines)
 
-	// Generate the diff output
+	// Keep only the first two context lines before the first change to avoid
+	// overwhelming the prompt with unchanged content.
 	var changes []string
-	for i, diff := range diffs {
-		switch diff.Type {
-		case diffmatchpatch.DiffInsert:
-			changes = append(changes, cleanDiffLine("+ %s", diff.Text))
-		case diffmatchpatch.DiffDelete:
-			changes = append(changes, cleanDiffLine("- %s", diff.Text))
-		default:
-			if len(diff.Text) > 0 && i < 2 {
-				changes = append(changes, cleanDiffLine("%s", diff.Text))
+	contextCount := 0
+	sawChange := false
+	for _, op := range ops {
+		switch op.kind {
+		case lineOpAdd:
+			sawChange = true
+			changes = append(changes, cleanDiffLine("+ %s", op.line))
+		case lineOpDel:
+			sawChange = true
+			changes = append(changes, cleanDiffLine("- %s", op.line))
+		case lineOpEqual:
+			if !sawChange && contextCount < 2 {
+				changes = append(changes, cleanDiffLine("%s", op.line))
+				contextCount++
 			}
 		}
 	}
 
 	return strings.Join(changes, "\n"), nil
+}
+
+type lineOpKind byte
+
+const (
+	lineOpEqual lineOpKind = iota
+	lineOpAdd
+	lineOpDel
+)
+
+type lineOp struct {
+	kind lineOpKind
+	line string
+}
+
+func splitLines(content string) []string {
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	lines := strings.Split(content, "\n")
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
+}
+
+func computeLineDiff(oldLines, newLines []string) []lineOp {
+	m := len(oldLines)
+	n := len(newLines)
+
+	lcs := make([][]int, m+1)
+	for i := range lcs {
+		lcs[i] = make([]int, n+1)
+	}
+
+	for i := m - 1; i >= 0; i-- {
+		for j := n - 1; j >= 0; j-- {
+			if oldLines[i] == newLines[j] {
+				lcs[i][j] = lcs[i+1][j+1] + 1
+			} else if lcs[i+1][j] >= lcs[i][j+1] {
+				lcs[i][j] = lcs[i+1][j]
+			} else {
+				lcs[i][j] = lcs[i][j+1]
+			}
+		}
+	}
+
+	ops := make([]lineOp, 0, m+n)
+	i, j := 0, 0
+	for i < m && j < n {
+		switch {
+		case oldLines[i] == newLines[j]:
+			ops = append(ops, lineOp{kind: lineOpEqual, line: oldLines[i]})
+			i++
+			j++
+		case lcs[i+1][j] >= lcs[i][j+1]:
+			ops = append(ops, lineOp{kind: lineOpDel, line: oldLines[i]})
+			i++
+		default:
+			ops = append(ops, lineOp{kind: lineOpAdd, line: newLines[j]})
+			j++
+		}
+	}
+
+	for ; i < m; i++ {
+		ops = append(ops, lineOp{kind: lineOpDel, line: oldLines[i]})
+	}
+	for ; j < n; j++ {
+		ops = append(ops, lineOp{kind: lineOpAdd, line: newLines[j]})
+	}
+
+	return ops
 }

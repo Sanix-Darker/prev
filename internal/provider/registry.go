@@ -5,25 +5,25 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/spf13/viper"
+	"github.com/sanix-darker/prev/internal/config"
 )
 
 // ---------------------------------------------------------------------------
 // Provider factory
 // ---------------------------------------------------------------------------
 
-// Factory is a constructor function that creates an AIProvider from a viper
-// config subtree. Each provider registers its own factory.
+// Factory is a constructor function that creates an AIProvider from a config
+// store subtree. Each provider registers its own factory.
 //
-// The viper instance is scoped to the provider's configuration block, e.g.:
+// The store is scoped to the provider's configuration block, e.g.:
 //
 //	providers:
 //	  openai:
 //	    api_key: sk-...
 //	    model: gpt-4o
 //
-// would pass a viper that resolves "api_key" and "model" directly.
-type Factory func(v *viper.Viper) (AIProvider, error)
+// would pass a store that resolves "api_key" and "model" directly.
+type Factory func(v *config.Store) (AIProvider, error)
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -67,7 +67,7 @@ func (r *Registry) Register(name string, f Factory) {
 }
 
 // Get creates a provider instance by name using the given config.
-func (r *Registry) Get(name string, v *viper.Viper) (AIProvider, error) {
+func (r *Registry) Get(name string, v *config.Store) (AIProvider, error) {
 	r.mu.RLock()
 	f, exists := r.factories[name]
 	r.mu.RUnlock()
@@ -102,7 +102,7 @@ func Register(name string, f Factory) {
 }
 
 // Get resolves a provider by name from the global registry.
-func Get(name string, v *viper.Viper) (AIProvider, error) {
+func Get(name string, v *config.Store) (AIProvider, error) {
 	return globalRegistry.Get(name, v)
 }
 
@@ -112,7 +112,7 @@ func Names() []string {
 }
 
 // MustGet is like Get but panics on error. Useful for tests.
-func MustGet(name string, v *viper.Viper) AIProvider {
+func MustGet(name string, v *config.Store) AIProvider {
 	p, err := Get(name, v)
 	if err != nil {
 		panic(err)

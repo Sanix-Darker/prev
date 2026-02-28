@@ -1,16 +1,22 @@
 package gitlab
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/sanix-darker/prev/internal/vcs"
-	gl "gitlab.com/gitlab-org/api/client-go"
 )
 
 // Provider implements vcs.VCSProvider for GitLab.
 type Provider struct {
-	api     *gl.Client
+	client  *http.Client
 	baseURL string
 	token   string
 }
@@ -28,12 +34,11 @@ func NewProvider(token, baseURL string) (vcs.VCSProvider, error) {
 		baseURL = "https://gitlab.com"
 	}
 
-	client, err := gl.NewClient(token, gl.WithBaseURL(baseURL+"/api/v4"))
-	if err != nil {
-		return nil, fmt.Errorf("gitlab: failed to create client: %w", err)
-	}
-
-	return &Provider{api: client, baseURL: baseURL, token: token}, nil
+	return &Provider{
+		client:  &http.Client{Timeout: 30 * time.Second},
+		baseURL: strings.TrimRight(baseURL, "/"),
+		token:   token,
+	}, nil
 }
 
 func (p *Provider) Info() vcs.ProviderInfo {
@@ -48,8 +53,26 @@ func (p *Provider) Validate() error {
 }
 
 func (p *Provider) FetchMR(projectID string, mrIID int64) (*vcs.MergeRequest, error) {
-	mr, _, err := p.api.MergeRequests.GetMergeRequest(projectID, mrIID, nil)
-	if err != nil {
+	var mr struct {
+		IID         int64  `json:"iid"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		Author      struct {
+			Username string `json:"username"`
+		} `json:"author"`
+		SourceBranch string `json:"source_branch"`
+		TargetBranch string `json:"target_branch"`
+		State        string `json:"state"`
+		WebURL       string `json:"web_url"`
+		DiffRefs     struct {
+			BaseSha  string `json:"base_sha"`
+			HeadSha  string `json:"head_sha"`
+			StartSha string `json:"start_sha"`
+		} `json:"diff_refs"`
+	}
+
+	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d", url.PathEscape(projectID), mrIID)
+	if err := p.getJSON(context.Background(), endpoint, &mr); err != nil {
 		return nil, fmt.Errorf("gitlab: failed to fetch MR !%d: %w", mrIID, err)
 	}
 
@@ -71,13 +94,24 @@ func (p *Provider) FetchMR(projectID string, mrIID int64) (*vcs.MergeRequest, er
 }
 
 func (p *Provider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, error) {
-	opts := &gl.ListMergeRequestDiffsOptions{
-		ListOptions: gl.ListOptions{PerPage: 100},
+	type apiDiff struct {
+		OldPath     string `json:"old_path"`
+		NewPath     string `json:"new_path"`
+		Diff        string `json:"diff"`
+		NewFile     bool   `json:"new_file"`
+		RenamedFile bool   `json:"renamed_file"`
+		DeletedFile bool   `json:"deleted_file"`
+		AMode       string `json:"a_mode"`
+		BMode       string `json:"b_mode"`
 	}
 
 	var allDiffs []vcs.FileDiff
+	page := 1
 	for {
-		diffs, resp, err := p.api.MergeRequests.ListMergeRequestDiffs(projectID, mrIID, opts)
+		endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/diffs?per_page=100&page=%d",
+			url.PathEscape(projectID), mrIID, page)
+		var diffs []apiDiff
+		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &diffs)
 		if err != nil {
 			return nil, fmt.Errorf("gitlab: failed to fetch MR diffs: %w", err)
 		}
@@ -95,33 +129,68 @@ func (p *Provider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, 
 			})
 		}
 
-		if resp.NextPage == 0 {
+		if !hasNextPage(resp.Header.Get("X-Next-Page")) {
 			break
 		}
-		opts.Page = resp.NextPage
+		page++
 	}
 
 	return allDiffs, nil
 }
 
 func (p *Provider) FetchMRRawDiff(projectID string, mrIID int64) (string, error) {
-	raw, _, err := p.api.MergeRequests.ShowMergeRequestRawDiffs(
-		projectID, mrIID, &gl.ShowMergeRequestRawDiffsOptions{},
-	)
+	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/raw_diffs",
+		url.PathEscape(projectID), mrIID)
+
+	req, err := p.newRequest(context.Background(), http.MethodGet, endpoint, nil)
 	if err != nil {
-		return "", fmt.Errorf("gitlab: failed to fetch MR raw diff: %w", err)
+		return "", err
+	}
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("gitlab: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
 	}
 	return strings.TrimSpace(string(raw)), nil
 }
 
 func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDiscussion, error) {
-	opts := &gl.ListMergeRequestDiscussionsOptions{
-		ListOptions: gl.ListOptions{PerPage: 100},
+	type apiNote struct {
+		ID         int64  `json:"id"`
+		Body       string `json:"body"`
+		Resolved   bool   `json:"resolved"`
+		Resolvable bool   `json:"resolvable"`
+		Author     struct {
+			Username string `json:"username"`
+		} `json:"author"`
+		Position *struct {
+			NewPath string `json:"new_path"`
+			NewLine int    `json:"new_line"`
+		} `json:"position"`
+	}
+	type apiDiscussion struct {
+		ID    string    `json:"id"`
+		Notes []apiNote `json:"notes"`
 	}
 
 	var out []vcs.MRDiscussion
+	page := 1
 	for {
-		discussions, resp, err := p.api.Discussions.ListMergeRequestDiscussions(projectID, mrIID, opts)
+		endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/discussions?per_page=100&page=%d",
+			url.PathEscape(projectID), mrIID, page)
+		var discussions []apiDiscussion
+		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &discussions)
 		if err != nil {
 			return nil, fmt.Errorf("gitlab: failed to list MR discussions: %w", err)
 		}
@@ -138,30 +207,38 @@ func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDis
 				}
 				if n.Position != nil {
 					note.FilePath = n.Position.NewPath
-					note.Line = int(n.Position.NewLine)
+					note.Line = n.Position.NewLine
 				}
 				thread.Notes = append(thread.Notes, note)
 			}
 			out = append(out, thread)
 		}
 
-		if resp.NextPage == 0 {
+		if !hasNextPage(resp.Header.Get("X-Next-Page")) {
 			break
 		}
-		opts.Page = resp.NextPage
+		page++
 	}
 
 	return out, nil
 }
 
 func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, error) {
-	opts := &gl.ListMergeRequestNotesOptions{
-		ListOptions: gl.ListOptions{PerPage: 100},
+	type apiNote struct {
+		ID     int64  `json:"id"`
+		Body   string `json:"body"`
+		Author struct {
+			Username string `json:"username"`
+		} `json:"author"`
 	}
 
 	var out []vcs.MRNote
+	page := 1
 	for {
-		notes, resp, err := p.api.Notes.ListMergeRequestNotes(projectID, mrIID, opts)
+		endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/notes?per_page=100&page=%d",
+			url.PathEscape(projectID), mrIID, page)
+		var notes []apiNote
+		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &notes)
 		if err != nil {
 			return nil, fmt.Errorf("gitlab: failed to list MR notes: %w", err)
 		}
@@ -172,24 +249,32 @@ func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, err
 				Body:   n.Body,
 			})
 		}
-		if resp.NextPage == 0 {
+		if !hasNextPage(resp.Header.Get("X-Next-Page")) {
 			break
 		}
-		opts.Page = resp.NextPage
+		page++
 	}
 
 	return out, nil
 }
 
 func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
-	state := "opened"
-	opts := &gl.ListProjectMergeRequestsOptions{
-		State:       &state,
-		ListOptions: gl.ListOptions{PerPage: 20},
+	type apiMR struct {
+		IID    int64  `json:"iid"`
+		Title  string `json:"title"`
+		Author struct {
+			Username string `json:"username"`
+		} `json:"author"`
+		SourceBranch string `json:"source_branch"`
+		TargetBranch string `json:"target_branch"`
+		State        string `json:"state"`
+		WebURL       string `json:"web_url"`
 	}
 
-	mrs, _, err := p.api.MergeRequests.ListProjectMergeRequests(projectID, opts)
-	if err != nil {
+	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests?state=opened&per_page=20",
+		url.PathEscape(projectID))
+	var mrs []apiMR
+	if err := p.getJSON(context.Background(), endpoint, &mrs); err != nil {
 		return nil, fmt.Errorf("gitlab: failed to list MRs: %w", err)
 	}
 
@@ -210,50 +295,52 @@ func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
 }
 
 func (p *Provider) PostSummaryNote(projectID string, mrIID int64, body string) error {
-	_, _, err := p.api.Notes.CreateMergeRequestNote(projectID, mrIID, &gl.CreateMergeRequestNoteOptions{
-		Body: &body,
-	})
-	if err != nil {
+	payload := map[string]string{"body": body}
+	if err := p.postJSON(context.Background(),
+		fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/notes", url.PathEscape(projectID), mrIID),
+		payload,
+		nil,
+	); err != nil {
 		return fmt.Errorf("gitlab: failed to post MR note: %w", err)
 	}
 	return nil
 }
 
 func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.DiffRefs, comment vcs.InlineComment) error {
-	posType := "text"
-	filePath := comment.FilePath
-	oldLine := comment.OldLine
-	position := &gl.PositionOptions{
-		BaseSHA:      &refs.BaseSHA,
-		HeadSHA:      &refs.HeadSHA,
-		StartSHA:     &refs.StartSHA,
-		PositionType: &posType,
-		NewPath:      &filePath,
-		OldPath:      &filePath,
-		NewLine:      &comment.NewLine,
+	position := map[string]interface{}{
+		"base_sha":      refs.BaseSHA,
+		"head_sha":      refs.HeadSHA,
+		"start_sha":     refs.StartSHA,
+		"position_type": "text",
+		"new_path":      comment.FilePath,
+		"old_path":      comment.FilePath,
+		"new_line":      comment.NewLine,
 	}
-	if oldLine > 0 {
-		position.OldLine = &oldLine
+	if comment.OldLine > 0 {
+		position["old_line"] = comment.OldLine
 	}
 
-	_, _, err := p.api.Discussions.CreateMergeRequestDiscussion(projectID, mrIID, &gl.CreateMergeRequestDiscussionOptions{
-		Body:     &comment.Body,
-		Position: position,
-	})
-	if err != nil {
+	payload := map[string]interface{}{
+		"body":     comment.Body,
+		"position": position,
+	}
+
+	if err := p.postJSON(context.Background(),
+		fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/discussions", url.PathEscape(projectID), mrIID),
+		payload,
+		nil,
+	); err != nil {
 		return fmt.Errorf("gitlab: failed to post inline discussion: %w", err)
 	}
 	return nil
 }
 
 func (p *Provider) ReplyToMRDiscussion(projectID string, mrIID int64, discussionID, body string) error {
-	_, _, err := p.api.Discussions.AddMergeRequestDiscussionNote(
-		projectID,
-		mrIID,
-		discussionID,
-		&gl.AddMergeRequestDiscussionNoteOptions{Body: &body},
-	)
-	if err != nil {
+	payload := map[string]string{"body": body}
+	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/discussions/%s/notes",
+		url.PathEscape(projectID), mrIID, discussionID)
+
+	if err := p.postJSON(context.Background(), endpoint, payload, nil); err != nil {
 		return fmt.Errorf("gitlab: failed to reply to discussion %s: %w", discussionID, err)
 	}
 	return nil
@@ -262,4 +349,90 @@ func (p *Provider) ReplyToMRDiscussion(projectID string, mrIID int64, discussion
 // FormatSuggestionBlock returns a GitLab-native suggestion code block.
 func (p *Provider) FormatSuggestionBlock(suggestion string) string {
 	return "```suggestion:-0+0\n" + suggestion + "\n```"
+}
+
+// --- HTTP helpers (same pattern as github provider) ---
+
+func (p *Provider) getJSON(ctx context.Context, endpoint string, out interface{}) error {
+	_, err := p.getJSONWithResponse(ctx, endpoint, out)
+	return err
+}
+
+func (p *Provider) getJSONWithResponse(ctx context.Context, endpoint string, out interface{}) (*http.Response, error) {
+	req, err := p.newRequest(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return resp, fmt.Errorf("gitlab: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	if out != nil {
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return resp, err
+		}
+	}
+
+	return resp, nil
+}
+
+func (p *Provider) postJSON(ctx context.Context, endpoint string, payload interface{}, out interface{}) error {
+	var buf io.Reader
+	if payload != nil {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		buf = bytes.NewReader(data)
+	}
+
+	req, err := p.newRequest(ctx, http.MethodPost, endpoint, buf)
+	if err != nil {
+		return err
+	}
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("gitlab: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	if out != nil {
+		return json.NewDecoder(resp.Body).Decode(out)
+	}
+	return nil
+}
+
+func (p *Provider) newRequest(ctx context.Context, method, endpoint string, body io.Reader) (*http.Request, error) {
+	u, err := url.Parse(p.baseURL + endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "prev-cli")
+	req.Header.Set("PRIVATE-TOKEN", p.token)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req, nil
+}
+
+func hasNextPage(nextPageHeader string) bool {
+	return nextPageHeader != "" && nextPageHeader != "0"
 }

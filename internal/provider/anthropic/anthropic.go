@@ -14,16 +14,17 @@ package anthropic
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/go-resty/resty/v2"
+	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/provider"
-	"github.com/spf13/viper"
 )
 
 // ---------------------------------------------------------------------------
@@ -112,7 +113,7 @@ const anthropicVersion = "2023-06-01"
 
 // Provider implements provider.AIProvider for the Anthropic Messages API.
 type Provider struct {
-	client   *resty.Client
+	client   *http.Client
 	apiKey   string
 	baseURL  string
 	model    string
@@ -121,7 +122,7 @@ type Provider struct {
 }
 
 // NewProvider is the factory function registered with the provider registry.
-func NewProvider(v *viper.Viper) (provider.AIProvider, error) {
+func NewProvider(v *config.Store) (provider.AIProvider, error) {
 	apiKey := v.GetString("api_key")
 	baseURL := v.GetString("base_url")
 	if baseURL == "" {
@@ -140,13 +141,8 @@ func NewProvider(v *viper.Viper) (provider.AIProvider, error) {
 		timeout = 30 * time.Second
 	}
 
-	client := resty.New().
-		SetTimeout(timeout).
-		SetHeader("Content-Type", "application/json").
-		SetHeader("anthropic-version", anthropicVersion)
-
 	return &Provider{
-		client:   client,
+		client:   &http.Client{Timeout: timeout},
 		apiKey:   apiKey,
 		baseURL:  strings.TrimRight(baseURL, "/"),
 		model:    model,
@@ -188,24 +184,49 @@ func (p *Provider) Complete(ctx context.Context, req provider.CompletionRequest)
 func (p *Provider) doComplete(ctx context.Context, req provider.CompletionRequest) (*provider.CompletionResponse, error) {
 	body := p.buildRequest(req, false)
 
-	resp, err := p.client.R().
-		SetContext(ctx).
-		SetHeader("x-api-key", p.apiKey).
-		SetBody(body).
-		Post(p.baseURL + "/v1/messages")
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to marshal request",
+			Provider: "anthropic", Cause: err,
+		}
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		p.baseURL+"/v1/messages", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to build request",
+			Provider: "anthropic", Cause: err,
+		}
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-api-key", p.apiKey)
+	httpReq.Header.Set("anthropic-version", anthropicVersion)
+
+	resp, err := p.client.Do(httpReq)
 	if err != nil {
 		return nil, &provider.ProviderError{
 			Code: provider.ErrCodeProviderUnavailable, Message: "HTTP request failed",
 			Provider: "anthropic", Cause: err,
 		}
 	}
+	defer resp.Body.Close()
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, classifyHTTPError(resp.StatusCode(), resp.Body())
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to read response",
+			Provider: "anthropic", Cause: err,
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, classifyHTTPError(resp.StatusCode, respBody)
 	}
 
 	var apiResp apiResponse
-	if err := json.Unmarshal(resp.Body(), &apiResp); err != nil {
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, &provider.ProviderError{
 			Code: provider.ErrCodeUnknown, Message: "failed to decode response",
 			Provider: "anthropic", Cause: err,

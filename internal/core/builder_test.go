@@ -77,6 +77,15 @@ func TestBuildDiff(t *testing.T) {
 	assert.True(t, strings.Contains(diff, "+") || strings.Contains(diff, "-"))
 }
 
+func TestBuildDiff_LineGranularity(t *testing.T) {
+	diff, err := BuildDiff("../../fixtures/test_diff1.py", "../../fixtures/test_diff2.py")
+	require.NoError(t, err)
+
+	assert.Contains(t, diff, "-     maxx = 0")
+	assert.Contains(t, diff, "+     return max(given_dict.values())")
+	assert.NotContains(t, diff, "+ def get_bigger_value(given_dict: dict) -> int:")
+}
+
 func TestBuildDiff_SameFile(t *testing.T) {
 	diff, err := BuildDiff("../../fixtures/test_diff1.py", "../../fixtures/test_diff1.py")
 	require.NoError(t, err)

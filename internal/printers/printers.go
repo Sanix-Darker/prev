@@ -1,10 +1,10 @@
 package printers
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
-
-	"github.com/manifoldco/promptui"
 )
 
 type IPrinters interface {
@@ -19,26 +19,14 @@ func NewPrinters() *Printers {
 }
 
 func (p Printers) Confirm(message string) bool {
-	validate := func(input string) error {
-		input = strings.ToLower(strings.TrimSpace(input))
-		if input != "y" && input != "n" {
-			return fmt.Errorf("wrong input %s, was expecting `y` or `n`", input)
-		}
+	fmt.Fprintf(os.Stderr, "%s Press (y/n): ", message)
 
-		return nil
-	}
-
-	msg := message + " Press (y/n)"
-	prompt := promptui.Prompt{
-		Label:    msg,
-		Validate: validate,
-	}
-
-	result, err := prompt.Run()
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
 	if err != nil {
 		return false
 	}
-	input := strings.ToLower(strings.TrimSpace(result))
+	input = strings.ToLower(strings.TrimSpace(input))
 
 	return input == "y"
 }

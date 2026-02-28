@@ -9,7 +9,6 @@ import (
 	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/provider"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 func init() {
@@ -31,7 +30,7 @@ func newAIListCmd() *cobra.Command {
 			names := provider.Names()
 			fmt.Println("Available providers:")
 			for _, name := range names {
-				v := viper.New()
+				v := config.NewStore()
 				p, err := provider.Get(name, v)
 				if err != nil {
 					fmt.Printf("  - %-15s (not configured)\n", name)

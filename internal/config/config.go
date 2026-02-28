@@ -4,23 +4,22 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
-	"github.com/mitchellh/go-homedir"
 	printers "github.com/sanix-darker/prev/internal/printers"
-	"github.com/spf13/viper"
 )
 
 const (
 	HomePath              = "$HOME"
 	ConfigDirPath         = HomePath + "/.config/prev"
-	ConfigFilePath         = ConfigDirPath + "/config.yml"
+	ConfigFilePath        = ConfigDirPath + "/config.yml"
 	ConversationCachePath = HomePath + "/.prev_cache"
 )
 
 // Config contains the entire cli dependencies
 type Config struct {
 	Version                    string
-	Viper                      *viper.Viper
+	Viper                      *Store
 	ConfigDirPath              string
 	ConfigFilePath             string
 	ConfigCachePath            string
@@ -36,7 +35,6 @@ type Config struct {
 	ContextLines               int
 	MaxBatchTokens             int
 	SerenaMode                 string
-	Spin                       printers.ISpinner
 	Printers                   printers.IPrinters
 
 	//io Writers useful for testing
@@ -48,7 +46,6 @@ type Config struct {
 // NewDefaultConfig creates a new default config
 func NewDefaultConfig() Config {
 	conf := Config{
-		Spin:                       printers.NewSpinner(),
 		Printers:                   printers.NewPrinters(),
 		ConfigDirPath:              ".config/prev",
 		ConfigFilePath:             "config.yml",
@@ -69,32 +66,30 @@ func NewDefaultConfig() Config {
 		ErrWriter:                  os.Stderr,
 	}
 
-	conf.Viper = setupViper(conf)
+	conf.Viper = setupStore(conf)
 	return conf
 }
 
-func setupViper(conf Config) *viper.Viper {
-	v := viper.New()
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
+func setupStore(conf Config) *Store {
+	s := NewStore()
 
 	dir, err := GetConfigDirPath(conf)
 	if err != nil {
-		return v
+		return s
 	}
 
-	v.AddConfigPath(dir)
-	if err := v.ReadInConfig(); err != nil {
+	cfgFile := filepath.Join(dir, conf.ConfigFilePath)
+	if err := s.LoadYAMLFile(cfgFile); err != nil {
 		// Config file not found is OK, we use defaults
-		return v
+		return s
 	}
 
-	return v
+	return s
 }
 
 // GetConfigFilePath get the store file path from config
 func GetConfigFilePath(conf Config) (string, error) {
-	home, err := homedir.Dir()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to read home directory: %s", err)
 	}
@@ -105,7 +100,7 @@ func GetConfigFilePath(conf Config) (string, error) {
 
 // GetHistoryFilePath get the history path for prev
 func GetHistoryFilePath(conf Config) (string, error) {
-	home, err := homedir.Dir()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to read home directory: %s", err)
 	}
@@ -116,7 +111,7 @@ func GetHistoryFilePath(conf Config) (string, error) {
 
 // GetCacheDirPath returns the path of the prev caches
 func GetCacheDirPath(conf Config) (string, error) {
-	home, err := homedir.Dir()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to read home directory: %s", err)
 	}
@@ -127,7 +122,7 @@ func GetCacheDirPath(conf Config) (string, error) {
 
 // GetConfigDirPath returns the path of the prev folder
 func GetConfigDirPath(conf Config) (string, error) {
-	home, err := homedir.Dir()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to read home directory: %s", err)
 	}

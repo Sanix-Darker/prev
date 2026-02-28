@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/provider"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +39,7 @@ func TestClaudeComplete(t *testing.T) {
 	server := mockAnthropicServer(t)
 	defer server.Close()
 
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("api_key", "test-key")
 	v.Set("base_url", server.URL)
 	v.Set("model", "claude-sonnet-4-20250514")
@@ -74,7 +74,7 @@ func TestClaudeComplete_Error(t *testing.T) {
 	}))
 	defer server.Close()
 
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("api_key", "bad-key")
 	v.Set("base_url", server.URL)
 
@@ -112,7 +112,7 @@ func TestClaudeComplete_Streaming(t *testing.T) {
 	}))
 	defer server.Close()
 
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("api_key", "test-key")
 	v.Set("base_url", server.URL)
 	v.Set("timeout", "10s")
@@ -137,7 +137,7 @@ func TestClaudeComplete_Streaming(t *testing.T) {
 }
 
 func TestClaudeInfo(t *testing.T) {
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("api_key", "test")
 	p, err := NewProvider(v)
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestClaudeInfo(t *testing.T) {
 }
 
 func TestClaudeValidate_NoAPIKey(t *testing.T) {
-	v := viper.New()
+	v := config.NewStore()
 	p, err := NewProvider(v)
 	require.NoError(t, err)
 

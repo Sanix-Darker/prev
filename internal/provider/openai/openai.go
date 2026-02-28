@@ -8,16 +8,17 @@ package openai
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/go-resty/resty/v2"
+	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/provider"
-	"github.com/spf13/viper"
 )
 
 // ---------------------------------------------------------------------------
@@ -88,7 +89,7 @@ type apiError struct {
 
 // Provider implements provider.AIProvider for OpenAI's Chat Completions API.
 type Provider struct {
-	client   *resty.Client
+	client   *http.Client
 	apiKey   string
 	baseURL  string
 	model    string
@@ -98,7 +99,7 @@ type Provider struct {
 
 // NewProvider is the factory function registered with the provider registry.
 // It reads configuration from the supplied viper instance.
-func NewProvider(v *viper.Viper) (provider.AIProvider, error) {
+func NewProvider(v *config.Store) (provider.AIProvider, error) {
 	apiKey := v.GetString("api_key")
 	baseURL := v.GetString("base_url")
 	if baseURL == "" {
@@ -117,12 +118,8 @@ func NewProvider(v *viper.Viper) (provider.AIProvider, error) {
 		timeout = 30 * time.Second
 	}
 
-	client := resty.New().
-		SetTimeout(timeout).
-		SetHeader("Content-Type", "application/json")
-
 	return &Provider{
-		client:   client,
+		client:   &http.Client{Timeout: timeout},
 		apiKey:   apiKey,
 		baseURL:  strings.TrimRight(baseURL, "/"),
 		model:    model,
@@ -152,10 +149,18 @@ func (p *Provider) Validate(ctx context.Context) error {
 		}
 	}
 	// Quick connectivity check: list models.
-	resp, err := p.client.R().
-		SetContext(ctx).
-		SetAuthToken(p.apiKey).
-		Get(p.baseURL + "/models")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/models", nil)
+	if err != nil {
+		return &provider.ProviderError{
+			Code:     provider.ErrCodeProviderUnavailable,
+			Message:  "failed to build validation request",
+			Provider: "openai",
+			Cause:    err,
+		}
+	}
+	req.Header.Set("Authorization", "Bearer "+p.apiKey)
+
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return &provider.ProviderError{
 			Code:     provider.ErrCodeProviderUnavailable,
@@ -164,12 +169,15 @@ func (p *Provider) Validate(ctx context.Context) error {
 			Cause:    err,
 		}
 	}
-	if resp.StatusCode() != http.StatusOK {
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
 		return &provider.ProviderError{
 			Code:       provider.ErrCodeAuthentication,
 			Message:    "OpenAI API returned non-200 on validation",
 			Provider:   "openai",
-			StatusCode: resp.StatusCode(),
+			StatusCode: resp.StatusCode,
 		}
 	}
 	return nil
@@ -202,11 +210,26 @@ func (p *Provider) doComplete(ctx context.Context, req provider.CompletionReques
 	}
 	applyTokenParam(&body, model, maxTok)
 
-	resp, err := p.client.R().
-		SetContext(ctx).
-		SetAuthToken(p.apiKey).
-		SetBody(body).
-		Post(p.baseURL + "/chat/completions")
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to marshal request",
+			Provider: "openai", Cause: err,
+		}
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		p.baseURL+"/chat/completions", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to build request",
+			Provider: "openai", Cause: err,
+		}
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+
+	resp, err := p.client.Do(httpReq)
 	if err != nil {
 		return nil, &provider.ProviderError{
 			Code:     provider.ErrCodeProviderUnavailable,
@@ -215,13 +238,22 @@ func (p *Provider) doComplete(ctx context.Context, req provider.CompletionReques
 			Cause:    err,
 		}
 	}
+	defer resp.Body.Close()
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, classifyHTTPError("openai", resp.StatusCode(), resp.Body())
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to read response",
+			Provider: "openai", Cause: err,
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, classifyHTTPError("openai", resp.StatusCode, respBody)
 	}
 
 	var apiResp apiResponse
-	if err := json.Unmarshal(resp.Body(), &apiResp); err != nil {
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, &provider.ProviderError{
 			Code:     provider.ErrCodeUnknown,
 			Message:  "failed to decode response",

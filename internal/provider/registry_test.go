@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/provider"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +50,7 @@ func (m *mockProvider) Validate(ctx context.Context) error {
 }
 
 func mockFactory(name string) provider.Factory {
-	return func(v *viper.Viper) (provider.AIProvider, error) {
+	return func(v *config.Store) (provider.AIProvider, error) {
 		return &mockProvider{name: name}, nil
 	}
 }
@@ -59,14 +59,14 @@ func TestRegistryRegisterAndGet(t *testing.T) {
 	reg := provider.NewRegistry()
 	reg.Register("test-provider", mockFactory("test-provider"))
 
-	p, err := reg.Get("test-provider", viper.New())
+	p, err := reg.Get("test-provider", config.NewStore())
 	require.NoError(t, err)
 	assert.Equal(t, "test-provider", p.Info().Name)
 }
 
 func TestRegistryGetUnknownProvider(t *testing.T) {
 	reg := provider.NewRegistry()
-	_, err := reg.Get("nonexistent", viper.New())
+	_, err := reg.Get("nonexistent", config.NewStore())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown provider")
 }
