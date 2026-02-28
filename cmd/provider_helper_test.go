@@ -4,12 +4,11 @@ import (
 	"testing"
 
 	"github.com/sanix-darker/prev/internal/config"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestResolvedModelForLog_CLIWins(t *testing.T) {
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("provider", "openai")
 	v.Set("providers.openai.model", "gpt-4o")
 	conf := config.Config{Viper: v, Provider: "openai", Model: "gpt-5.3-codex"}
@@ -18,18 +17,16 @@ func TestResolvedModelForLog_CLIWins(t *testing.T) {
 
 func TestResolvedModelForLog_ConfigUsed(t *testing.T) {
 	t.Setenv("OPENAI_API_MODEL", "")
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("provider", "openai")
-	v.Set("providers", map[string]interface{}{
-		"openai": map[string]interface{}{"model": "gpt-4o"},
-	})
+	v.Set("providers.openai.model", "gpt-4o")
 	conf := config.Config{Viper: v, Provider: "openai"}
 	assert.Equal(t, "gpt-4o", resolvedModelForLog(conf, "fallback"))
 }
 
 func TestResolvedModelForLog_EnvOverridesConfig(t *testing.T) {
 	t.Setenv("OPENAI_API_MODEL", "gpt-5.3-codex")
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("provider", "openai")
 	v.Set("providers.openai.model", "gpt-4o")
 	conf := config.Config{Viper: v, Provider: "openai"}

@@ -11,13 +11,12 @@ import (
 	"github.com/sanix-darker/prev/internal/diffparse"
 	"github.com/sanix-darker/prev/internal/vcs"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestResolveMentionHandle_FromConfig(t *testing.T) {
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("review.mention_handle", "@ange.saadjio")
 	conf := config.Config{Viper: v}
 
@@ -26,7 +25,7 @@ func TestResolveMentionHandle_FromConfig(t *testing.T) {
 
 func TestResolveMentionHandle_EnvOverridesConfig(t *testing.T) {
 	t.Setenv("PREV_MENTION_HANDLE", "@bot-user")
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("review.mention_handle", "@ange.saadjio")
 	conf := config.Config{Viper: v}
 
@@ -34,7 +33,7 @@ func TestResolveMentionHandle_EnvOverridesConfig(t *testing.T) {
 }
 
 func TestResolveMentionHandle_EmptyWhenUnset(t *testing.T) {
-	conf := config.Config{Viper: viper.New()}
+	conf := config.Config{Viper: config.NewStore()}
 	assert.Equal(t, "", resolveMentionHandle(conf))
 }
 
@@ -602,7 +601,7 @@ func TestBuildReReviewPrompt(t *testing.T) {
 }
 
 func TestResolveMRIntSetting_Precedence(t *testing.T) {
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("review.nitpick", 3)
 	conf := config.Config{Viper: v}
 	cmd := &cobra.Command{Use: "x"}
@@ -613,7 +612,7 @@ func TestResolveMRIntSetting_Precedence(t *testing.T) {
 }
 
 func TestResolveMRIntSetting_FromConfig(t *testing.T) {
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("review.nitpick", 4)
 	conf := config.Config{Viper: v}
 	cmd := &cobra.Command{Use: "x"}
@@ -623,7 +622,7 @@ func TestResolveMRIntSetting_FromConfig(t *testing.T) {
 }
 
 func TestResolveMRStringSetting_FromConfig(t *testing.T) {
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("review.strictness", "lenient")
 	conf := config.Config{Viper: v}
 	cmd := &cobra.Command{Use: "x"}

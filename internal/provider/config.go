@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/viper"
+	"github.com/sanix-darker/prev/internal/config"
 )
 
 // ---------------------------------------------------------------------------
@@ -14,22 +14,22 @@ import (
 
 // ProviderConfig holds the resolved configuration for instantiating a
 // provider. It is used by the Resolve* functions below so that the CLI
-// layer does not need to know about viper paths.
+// layer does not need to know about config paths.
 type ProviderConfig struct {
 	// Name is the provider name as it appears in the registry (e.g. "openai").
 	Name string
 
 	// Viper is a sub-tree scoped to the provider's config block.
-	Viper *viper.Viper
+	Viper *config.Store
 }
 
-// ConfigKeyProvider is the viper key that holds the active provider name.
+// ConfigKeyProvider is the config key that holds the active provider name.
 const ConfigKeyProvider = "provider"
 
 // ResolveProvider reads the active provider name and its config block from
-// viper. The lookup order is:
+// the config store. The lookup order is:
 //
-//  1. --provider CLI flag (already bound to viper)
+//  1. --provider CLI flag (already set on the store)
 //  2. PREV_PROVIDER environment variable
 //  3. "provider" key in the config file (~/.config/prev/config.yml)
 //  4. Fallback to "openai"
@@ -40,7 +40,7 @@ const ConfigKeyProvider = "provider"
 //	  openai:
 //	    api_key: ...
 //	    model: gpt-4o
-func ResolveProvider(v *viper.Viper) ProviderConfig {
+func ResolveProvider(v *config.Store) ProviderConfig {
 	// Determine the active provider name.
 	name := v.GetString(ConfigKeyProvider)
 	if name == "" {
@@ -51,12 +51,12 @@ func ResolveProvider(v *viper.Viper) ProviderConfig {
 	}
 	name = strings.ToLower(strings.TrimSpace(name))
 
-	// Build a sub-viper for the provider's config block.
+	// Build a sub-store for the provider's config block.
 	sub := v.Sub(fmt.Sprintf("providers.%s", name))
 	if sub == nil {
-		// No config file entry; create an empty viper so that env-var
+		// No config file entry; create an empty store so that env-var
 		// and flag bindings still work.
-		sub = viper.New()
+		sub = config.NewStore()
 	}
 
 	// Bind common env vars so they override file-based config. Providers
@@ -68,7 +68,7 @@ func ResolveProvider(v *viper.Viper) ProviderConfig {
 
 // bindProviderEnvVars sets up well-known environment variables for each
 // provider so that users can configure prev entirely through the shell.
-func bindProviderEnvVars(name string, v *viper.Viper) {
+func bindProviderEnvVars(name string, v *config.Store) {
 	switch name {
 	case "openai":
 		v.SetDefault("model", "gpt-4o")
@@ -97,14 +97,7 @@ func bindProviderEnvVars(name string, v *viper.Viper) {
 	}
 }
 
-func envOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func overrideFromEnv(v *viper.Viper, key, envName string) {
+func overrideFromEnv(v *config.Store, key, envName string) {
 	if value := strings.TrimSpace(os.Getenv(envName)); value != "" {
 		v.Set(key, value)
 	}

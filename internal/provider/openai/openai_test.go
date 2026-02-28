@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/provider"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +48,7 @@ func TestOpenAIComplete(t *testing.T) {
 	server := mockOpenAIServer(t)
 	defer server.Close()
 
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("api_key", "test-key")
 	v.Set("base_url", server.URL)
 	v.Set("model", "gpt-4o")
@@ -81,7 +81,7 @@ func TestOpenAIComplete_Error(t *testing.T) {
 	}))
 	defer server.Close()
 
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("api_key", "bad-key")
 	v.Set("base_url", server.URL)
 
@@ -96,7 +96,7 @@ func TestOpenAIComplete_Error(t *testing.T) {
 }
 
 func TestOpenAIComplete_EmptyAPIKey(t *testing.T) {
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("base_url", "http://localhost:1234")
 
 	p, err := NewProvider(v)
@@ -108,7 +108,7 @@ func TestOpenAIComplete_EmptyAPIKey(t *testing.T) {
 }
 
 func TestOpenAIInfo(t *testing.T) {
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("api_key", "test")
 	p, err := NewProvider(v)
 	require.NoError(t, err)
@@ -136,7 +136,7 @@ func TestOpenAIComplete_GPT5UsesMaxCompletionTokens(t *testing.T) {
 	}))
 	defer server.Close()
 
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("api_key", "test-key")
 	v.Set("base_url", server.URL)
 	v.Set("model", "gpt-5.2-chat-latest")

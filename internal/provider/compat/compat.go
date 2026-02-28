@@ -25,16 +25,17 @@ package compat
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/go-resty/resty/v2"
+	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/provider"
-	"github.com/spf13/viper"
 )
 
 // ---------------------------------------------------------------------------
@@ -53,7 +54,7 @@ func init() {
 
 // newFactory returns a Factory closure that captures the provider name.
 func newFactory(name string) provider.Factory {
-	return func(v *viper.Viper) (provider.AIProvider, error) {
+	return func(v *config.Store) (provider.AIProvider, error) {
 		return NewProvider(name, v)
 	}
 }
@@ -112,7 +113,7 @@ type apiError struct {
 // Provider implements provider.AIProvider for OpenAI-compatible endpoints.
 type Provider struct {
 	name     string
-	client   *resty.Client
+	client   *http.Client
 	apiKey   string
 	baseURL  string
 	model    string
@@ -121,7 +122,7 @@ type Provider struct {
 }
 
 // NewProvider creates a new generic OpenAI-compatible provider.
-func NewProvider(name string, v *viper.Viper) (provider.AIProvider, error) {
+func NewProvider(name string, v *config.Store) (provider.AIProvider, error) {
 	baseURL := v.GetString("base_url")
 	if baseURL == "" {
 		return nil, &provider.ProviderError{
@@ -144,13 +145,9 @@ func NewProvider(name string, v *viper.Viper) (provider.AIProvider, error) {
 		timeout = 60 * time.Second
 	}
 
-	client := resty.New().
-		SetTimeout(timeout).
-		SetHeader("Content-Type", "application/json")
-
 	return &Provider{
 		name:     name,
-		client:   client,
+		client:   &http.Client{Timeout: timeout},
 		apiKey:   v.GetString("api_key"),
 		baseURL:  strings.TrimRight(baseURL, "/"),
 		model:    model,
@@ -193,28 +190,50 @@ func (p *Provider) Complete(ctx context.Context, req provider.CompletionRequest)
 func (p *Provider) doComplete(ctx context.Context, req provider.CompletionRequest) (*provider.CompletionResponse, error) {
 	body := p.buildRequest(req, false)
 
-	r := p.client.R().
-		SetContext(ctx).
-		SetBody(body)
-
-	if p.apiKey != "" {
-		r.SetAuthToken(p.apiKey)
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to marshal request",
+			Provider: p.name, Cause: err,
+		}
 	}
 
-	resp, err := r.Post(p.baseURL + "/chat/completions")
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		p.baseURL+"/chat/completions", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to build request",
+			Provider: p.name, Cause: err,
+		}
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if p.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
+
+	resp, err := p.client.Do(httpReq)
 	if err != nil {
 		return nil, &provider.ProviderError{
 			Code: provider.ErrCodeProviderUnavailable, Message: "HTTP request failed",
 			Provider: p.name, Cause: err,
 		}
 	}
+	defer resp.Body.Close()
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, classifyHTTPError(p.name, resp.StatusCode(), resp.Body())
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to read response",
+			Provider: p.name, Cause: err,
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, classifyHTTPError(p.name, resp.StatusCode, respBody)
 	}
 
 	var apiResp apiResponse
-	if err := json.Unmarshal(resp.Body(), &apiResp); err != nil {
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, &provider.ProviderError{
 			Code: provider.ErrCodeUnknown, Message: "failed to decode response",
 			Provider: p.name, Cause: err,

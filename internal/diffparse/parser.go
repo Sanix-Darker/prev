@@ -3,9 +3,8 @@ package diffparse
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
-
-	"github.com/sourcegraph/go-diff/diff"
 )
 
 // FileChange represents a parsed file diff.
@@ -54,98 +53,112 @@ type DiffStats struct {
 
 // ParseGitDiff parses raw unified diff output into structured FileChanges.
 func ParseGitDiff(raw string) ([]FileChange, error) {
-	fileDiffs, err := diff.ParseMultiFileDiff([]byte(raw))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse diff: %w", err)
-	}
+	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
+	lines := strings.Split(normalized, "\n")
 
 	var changes []FileChange
-	for _, fd := range fileDiffs {
-		fc := FileChange{
-			OldName: cleanPath(fd.OrigName),
-			NewName: cleanPath(fd.NewName),
+	var current *FileChange
+	var currentHunk *Hunk
+	var oldLine, newLine int
+
+	flushHunk := func() {
+		if current != nil && currentHunk != nil {
+			current.Hunks = append(current.Hunks, *currentHunk)
+			currentHunk = nil
 		}
-
-		// Detect file type
-		if fd.OrigName == "/dev/null" {
-			fc.IsNew = true
-			fc.OldName = ""
-		}
-		if fd.NewName == "/dev/null" {
-			fc.IsDeleted = true
-			fc.NewName = ""
-		}
-		if fc.OldName != "" && fc.NewName != "" && fc.OldName != fc.NewName {
-			fc.IsRenamed = true
-		}
-
-		// Check for binary
-		if fd.Extended != nil {
-			for _, ext := range fd.Extended {
-				if strings.Contains(ext, "Binary files") || strings.Contains(ext, "GIT binary patch") {
-					fc.IsBinary = true
-					break
-				}
-			}
-		}
-		if !fc.IsBinary {
-			fc.IsBinary = isBinaryReviewPath(changePath(fc))
-		}
-
-		// Parse hunks
-		for _, h := range fd.Hunks {
-			hunk := Hunk{
-				OldStart: int(h.OrigStartLine),
-				OldLines: int(h.OrigLines),
-				NewStart: int(h.NewStartLine),
-				NewLines: int(h.NewLines),
-			}
-
-			oldLine := int(h.OrigStartLine)
-			newLine := int(h.NewStartLine)
-
-			for _, line := range strings.Split(string(h.Body), "\n") {
-				if len(line) == 0 {
-					continue
-				}
-
-				dl := DiffLine{}
-				switch line[0] {
-				case '+':
-					dl.Type = LineAdded
-					dl.Content = line[1:]
-					dl.NewLineNo = newLine
-					dl.OldLineNo = 0
-					newLine++
-					fc.Stats.Additions++
-				case '-':
-					dl.Type = LineDeleted
-					dl.Content = line[1:]
-					dl.OldLineNo = oldLine
-					dl.NewLineNo = 0
-					oldLine++
-					fc.Stats.Deletions++
-				default:
-					dl.Type = LineContext
-					if len(line) > 0 && line[0] == ' ' {
-						dl.Content = line[1:]
-					} else {
-						dl.Content = line
-					}
-					dl.OldLineNo = oldLine
-					dl.NewLineNo = newLine
-					oldLine++
-					newLine++
-				}
-				hunk.Lines = append(hunk.Lines, dl)
-			}
-
-			fc.Hunks = append(fc.Hunks, hunk)
-		}
-
-		changes = append(changes, fc)
 	}
 
+	flushFile := func() {
+		flushHunk()
+		if current == nil {
+			return
+		}
+		finalizeFileChange(current)
+		changes = append(changes, *current)
+		current = nil
+	}
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "diff --git ") {
+			flushFile()
+			oldName, newName := parseDiffGitHeader(line)
+			current = &FileChange{
+				OldName: oldName,
+				NewName: newName,
+			}
+			continue
+		}
+
+		if current == nil {
+			continue
+		}
+
+		if strings.HasPrefix(line, "new file mode ") {
+			current.IsNew = true
+			continue
+		}
+		if strings.HasPrefix(line, "deleted file mode ") {
+			current.IsDeleted = true
+			continue
+		}
+		if strings.HasPrefix(line, "rename from ") {
+			current.IsRenamed = true
+			current.OldName = cleanPath(strings.TrimPrefix(line, "rename from "))
+			continue
+		}
+		if strings.HasPrefix(line, "rename to ") {
+			current.IsRenamed = true
+			current.NewName = cleanPath(strings.TrimPrefix(line, "rename to "))
+			continue
+		}
+		if strings.HasPrefix(line, "Binary files ") || strings.Contains(line, "GIT binary patch") {
+			current.IsBinary = true
+			continue
+		}
+		if strings.HasPrefix(line, "--- ") {
+			path := parsePathMarker(strings.TrimPrefix(line, "--- "))
+			if path == "/dev/null" {
+				current.IsNew = true
+				current.OldName = ""
+			} else {
+				current.OldName = cleanPath(path)
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "+++ ") {
+			path := parsePathMarker(strings.TrimPrefix(line, "+++ "))
+			if path == "/dev/null" {
+				current.IsDeleted = true
+				current.NewName = ""
+			} else {
+				current.NewName = cleanPath(path)
+			}
+			continue
+		}
+
+		if strings.HasPrefix(line, "@@ ") {
+			flushHunk()
+			h, ok := parseHunkHeader(line)
+			if !ok {
+				continue
+			}
+			currentHunk = &h
+			oldLine = h.OldStart
+			newLine = h.NewStart
+			continue
+		}
+
+		if currentHunk == nil {
+			continue
+		}
+		appendHunkLine(current, currentHunk, line, &oldLine, &newLine)
+	}
+
+	flushFile()
+
+	if len(changes) == 0 && strings.TrimSpace(raw) != "" {
+		return nil, fmt.Errorf("failed to parse diff: no file diffs found")
+	}
 	return changes, nil
 }
 
@@ -168,62 +181,172 @@ func ParseGitLabDiffs(diffs []GitLabDiff) ([]FileChange, error) {
 		}
 
 		if d.Diff != "" {
-			// Create a pseudo unified diff header for the parser
-			header := fmt.Sprintf("--- a/%s\n+++ b/%s\n", d.OldPath, d.NewPath)
-			parsed, err := diff.ParseFileDiff([]byte(header + d.Diff))
-			if err == nil && parsed != nil {
-				for _, h := range parsed.Hunks {
-					hunk := Hunk{
-						OldStart: int(h.OrigStartLine),
-						OldLines: int(h.OrigLines),
-						NewStart: int(h.NewStartLine),
-						NewLines: int(h.NewLines),
-					}
-
-					oldLine := int(h.OrigStartLine)
-					newLine := int(h.NewStartLine)
-
-					for _, line := range strings.Split(string(h.Body), "\n") {
-						if len(line) == 0 {
-							continue
-						}
-						dl := DiffLine{}
-						switch line[0] {
-						case '+':
-							dl.Type = LineAdded
-							dl.Content = line[1:]
-							dl.NewLineNo = newLine
-							newLine++
-							fc.Stats.Additions++
-						case '-':
-							dl.Type = LineDeleted
-							dl.Content = line[1:]
-							dl.OldLineNo = oldLine
-							oldLine++
-							fc.Stats.Deletions++
-						default:
-							dl.Type = LineContext
-							if len(line) > 0 && line[0] == ' ' {
-								dl.Content = line[1:]
-							} else {
-								dl.Content = line
-							}
-							dl.OldLineNo = oldLine
-							dl.NewLineNo = newLine
-							oldLine++
-							newLine++
-						}
-						hunk.Lines = append(hunk.Lines, dl)
-					}
-					fc.Hunks = append(fc.Hunks, hunk)
-				}
-			}
+			parseRawHunksInto(&fc, d.Diff)
 		}
 
+		finalizeFileChange(&fc)
 		changes = append(changes, fc)
 	}
 
 	return changes, nil
+}
+
+func parseRawHunksInto(fc *FileChange, raw string) {
+	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
+	lines := strings.Split(normalized, "\n")
+
+	var currentHunk *Hunk
+	var oldLine, newLine int
+	flushHunk := func() {
+		if currentHunk != nil {
+			fc.Hunks = append(fc.Hunks, *currentHunk)
+			currentHunk = nil
+		}
+	}
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "@@ ") {
+			flushHunk()
+			h, ok := parseHunkHeader(line)
+			if !ok {
+				continue
+			}
+			currentHunk = &h
+			oldLine = h.OldStart
+			newLine = h.NewStart
+			continue
+		}
+		if currentHunk == nil {
+			continue
+		}
+		appendHunkLine(fc, currentHunk, line, &oldLine, &newLine)
+	}
+
+	flushHunk()
+}
+
+func appendHunkLine(fc *FileChange, h *Hunk, line string, oldLine, newLine *int) {
+	if line == "" || line == `\ No newline at end of file` {
+		return
+	}
+
+	dl := DiffLine{}
+	switch line[0] {
+	case '+':
+		dl.Type = LineAdded
+		dl.Content = line[1:]
+		dl.NewLineNo = *newLine
+		*newLine++
+		fc.Stats.Additions++
+	case '-':
+		dl.Type = LineDeleted
+		dl.Content = line[1:]
+		dl.OldLineNo = *oldLine
+		*oldLine++
+		fc.Stats.Deletions++
+	default:
+		dl.Type = LineContext
+		if line[0] == ' ' {
+			dl.Content = line[1:]
+		} else {
+			dl.Content = line
+		}
+		dl.OldLineNo = *oldLine
+		dl.NewLineNo = *newLine
+		*oldLine++
+		*newLine++
+	}
+
+	h.Lines = append(h.Lines, dl)
+}
+
+func parseDiffGitHeader(line string) (string, string) {
+	parts := strings.Fields(line)
+	if len(parts) < 4 {
+		return "", ""
+	}
+	return cleanPath(strings.Trim(parts[2], `"`)), cleanPath(strings.Trim(parts[3], `"`))
+}
+
+func parsePathMarker(raw string) string {
+	s := strings.TrimSpace(raw)
+	if idx := strings.IndexByte(s, '\t'); idx >= 0 {
+		s = s[:idx]
+	}
+	if strings.HasPrefix(s, `"`) && strings.HasSuffix(s, `"`) {
+		s = strings.Trim(s, `"`)
+	} else if idx := strings.IndexByte(s, ' '); idx >= 0 {
+		s = s[:idx]
+	}
+	return s
+}
+
+func parseHunkHeader(line string) (Hunk, bool) {
+	if !strings.HasPrefix(line, "@@ -") {
+		return Hunk{}, false
+	}
+	rest := strings.TrimPrefix(line, "@@ -")
+	idx := strings.Index(rest, " @@")
+	if idx < 0 {
+		return Hunk{}, false
+	}
+	rangePart := rest[:idx]
+	parts := strings.Split(rangePart, " +")
+	if len(parts) != 2 {
+		return Hunk{}, false
+	}
+
+	oldStart, oldLines, ok := parseRange(parts[0])
+	if !ok {
+		return Hunk{}, false
+	}
+	newStart, newLines, ok := parseRange(parts[1])
+	if !ok {
+		return Hunk{}, false
+	}
+
+	return Hunk{
+		OldStart: oldStart,
+		OldLines: oldLines,
+		NewStart: newStart,
+		NewLines: newLines,
+	}, true
+}
+
+func parseRange(s string) (int, int, bool) {
+	start := 0
+	lines := 1
+	parts := strings.SplitN(strings.TrimSpace(s), ",", 2)
+
+	v, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, false
+	}
+	start = v
+
+	if len(parts) == 2 {
+		v, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return 0, 0, false
+		}
+		lines = v
+	}
+	return start, lines, true
+}
+
+func finalizeFileChange(fc *FileChange) {
+	if fc.IsNew {
+		fc.OldName = ""
+	}
+	if fc.IsDeleted {
+		fc.NewName = ""
+	}
+	if !fc.IsRenamed && fc.OldName != "" && fc.NewName != "" && fc.OldName != fc.NewName {
+		fc.IsRenamed = true
+	}
+	if !fc.IsBinary {
+		fc.IsBinary = isBinaryReviewPath(changePath(*fc))
+	}
 }
 
 // GitLabDiff mirrors the structure used by the GitLab API.

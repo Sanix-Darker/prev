@@ -17,7 +17,6 @@ func TestNewDefaultConfig(t *testing.T) {
 	assert.Equal(t, "openai", conf.Provider)
 	assert.True(t, conf.Stream)
 	assert.NotNil(t, conf.Viper)
-	assert.NotNil(t, conf.Spin)
 	assert.NotNil(t, conf.Printers)
 	assert.NotNil(t, conf.InReader)
 	assert.NotNil(t, conf.OutWriter)
@@ -39,11 +38,11 @@ func TestGetConfigDirPath(t *testing.T) {
 	assert.Contains(t, dir, ".config/prev")
 }
 
-func TestSetupViper_NoConfigFile(t *testing.T) {
+func TestSetupStore_NoConfigFile(t *testing.T) {
 	conf := Config{
 		ConfigDirPath:  "/nonexistent/path",
 		ConfigFilePath: "config.yml",
 	}
-	v := setupViper(conf)
+	v := setupStore(conf)
 	assert.NotNil(t, v)
 }

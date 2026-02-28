@@ -3,7 +3,7 @@ package provider
 import (
 	"testing"
 
-	"github.com/spf13/viper"
+	"github.com/sanix-darker/prev/internal/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -11,7 +11,7 @@ func TestBindProviderEnvVars_OpenAIEnvOverridesConfig(t *testing.T) {
 	t.Setenv("OPENAI_API_MODEL", "gpt-5.3-codex")
 	t.Setenv("OPENAI_API_KEY", "sk-test")
 
-	v := viper.New()
+	v := config.NewStore()
 	v.Set("model", "gpt-4o")
 	v.Set("api_key", "file-key")
 
@@ -24,7 +24,7 @@ func TestBindProviderEnvVars_OpenAIEnvOverridesConfig(t *testing.T) {
 func TestBindProviderEnvVars_OpenAIDefaultWhenUnset(t *testing.T) {
 	t.Setenv("OPENAI_API_MODEL", "")
 
-	v := viper.New()
+	v := config.NewStore()
 	bindProviderEnvVars("openai", v)
 
 	assert.Equal(t, "gpt-4o", v.GetString("model"))

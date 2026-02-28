@@ -12,16 +12,17 @@ package azure
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/go-resty/resty/v2"
+	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/provider"
-	"github.com/spf13/viper"
 )
 
 // ---------------------------------------------------------------------------
@@ -83,7 +84,7 @@ type apiError struct {
 
 // Provider implements provider.AIProvider for Azure OpenAI Service.
 type Provider struct {
-	client     *resty.Client
+	client     *http.Client
 	apiKey     string
 	endpoint   string // e.g. https://<resource>.openai.azure.com
 	deployment string // Azure deployment name
@@ -93,7 +94,7 @@ type Provider struct {
 }
 
 // NewProvider is the factory function registered with the provider registry.
-func NewProvider(v *viper.Viper) (provider.AIProvider, error) {
+func NewProvider(v *config.Store) (provider.AIProvider, error) {
 	apiKey := v.GetString("api_key")
 	endpoint := strings.TrimRight(v.GetString("base_url"), "/")
 	if endpoint == "" {
@@ -124,12 +125,8 @@ func NewProvider(v *viper.Viper) (provider.AIProvider, error) {
 		timeout = 30 * time.Second
 	}
 
-	client := resty.New().
-		SetTimeout(timeout).
-		SetHeader("Content-Type", "application/json")
-
 	return &Provider{
-		client:     client,
+		client:     &http.Client{Timeout: timeout},
 		apiKey:     apiKey,
 		endpoint:   endpoint,
 		deployment: deployment,
@@ -185,24 +182,48 @@ func (p *Provider) Complete(ctx context.Context, req provider.CompletionRequest)
 func (p *Provider) doComplete(ctx context.Context, req provider.CompletionRequest) (*provider.CompletionResponse, error) {
 	body := p.buildRequest(req, false)
 
-	resp, err := p.client.R().
-		SetContext(ctx).
-		SetHeader("api-key", p.apiKey).
-		SetBody(body).
-		Post(p.completionsURL())
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to marshal request",
+			Provider: "azure", Cause: err,
+		}
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		p.completionsURL(), bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to build request",
+			Provider: "azure", Cause: err,
+		}
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("api-key", p.apiKey)
+
+	resp, err := p.client.Do(httpReq)
 	if err != nil {
 		return nil, &provider.ProviderError{
 			Code: provider.ErrCodeProviderUnavailable, Message: "HTTP request failed",
 			Provider: "azure", Cause: err,
 		}
 	}
+	defer resp.Body.Close()
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, classifyHTTPError(resp.StatusCode(), resp.Body())
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, &provider.ProviderError{
+			Code: provider.ErrCodeUnknown, Message: "failed to read response",
+			Provider: "azure", Cause: err,
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, classifyHTTPError(resp.StatusCode, respBody)
 	}
 
 	var apiResp apiResponse
-	if err := json.Unmarshal(resp.Body(), &apiResp); err != nil {
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		return nil, &provider.ProviderError{
 			Code: provider.ErrCodeUnknown, Message: "failed to decode response",
 			Provider: "azure", Cause: err,
