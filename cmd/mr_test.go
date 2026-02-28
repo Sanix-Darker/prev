@@ -813,6 +813,70 @@ func TestFilterOutMetaContextFindings(t *testing.T) {
 	}
 }
 
+func TestFilterLowSignalInlineFindings_DropsGenericKeepsSpecific(t *testing.T) {
+	changes := []diffparse.FileChange{
+		{
+			NewName: "public/index.php",
+			Hunks: []diffparse.Hunk{
+				{
+					NewStart: 58,
+					NewLines: 4,
+					Lines: []diffparse.DiffLine{
+						{Type: diffparse.LineContext, NewLineNo: 58, Content: "'summary' => (string) ($payload['summary'] ?? ''),"},
+						{Type: diffparse.LineAdded, NewLineNo: 59, Content: "'category' => (string) ($paylo['category'] ?? 'general'),"},
+						{Type: diffparse.LineContext, NewLineNo: 60, Content: "'tags' => (array) ($payload['tags'] ?? []),"},
+					},
+				},
+			},
+		},
+	}
+	valid := collectValidPositions(changes)
+	in := []core.FileComment{
+		{
+			FilePath: "public/index.php",
+			Line:     59,
+			Kind:     "ISSUE",
+			Severity: "HIGH",
+			Message:  "Changes in the main entry point may affect global request handling; ensure backward compatibility.",
+		},
+		{
+			FilePath: "public/index.php",
+			Line:     59,
+			Kind:     "ISSUE",
+			Severity: "HIGH",
+			Message:  "Typo `$paylo` should be `$payload`; this breaks category extraction.",
+		},
+	}
+
+	got := filterLowSignalInlineFindings(in, valid)
+	if assert.Len(t, got, 1) {
+		assert.Contains(t, got[0].Message, "$paylo")
+	}
+}
+
+func TestExtractHunkContext_NoAnchorFallsBackToRepresentativeHunk(t *testing.T) {
+	changes := []diffparse.FileChange{
+		{
+			NewName: "public/index.php",
+			Hunks: []diffparse.Hunk{
+				{
+					NewStart: 30,
+					NewLines: 2,
+					Lines: []diffparse.DiffLine{
+						{Type: diffparse.LineAdded, NewLineNo: 30, Content: "$title = trim($payload['title'] ?? '');"},
+						{Type: diffparse.LineAdded, NewLineNo: 31, Content: "$summary = trim($payload['summary'] ?? '');"},
+					},
+				},
+			},
+		},
+	}
+
+	got := extractHunkContext(changes, "", 0)
+	assert.Contains(t, got, "Thread has no inline anchor; using representative MR hunk")
+	assert.Contains(t, got, "public/index.php:30")
+	assert.Contains(t, got, "+ 30 $title")
+}
+
 func TestHasAnyModifiedLines(t *testing.T) {
 	noMods := []diffparse.FileChange{
 		{

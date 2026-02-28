@@ -350,6 +350,7 @@ func newMRReviewCmd() *cobra.Command {
 			}
 			parsed.FileComments = append(parsed.FileComments, detectDeterministicFindings(review.Changes)...)
 			parsed.FileComments = filterOutMetaContextFindings(parsed.FileComments)
+			parsed.FileComments = filterLowSignalInlineFindings(parsed.FileComments, validPositionsByFile)
 			if !inlineOnly && threadHasAnyCommand(discussions, mentionHandle, "summary") {
 				if hasTopLevelMarker(notes, prevSummaryMarker) {
 					fmt.Println("\nSummary already posted; skipping duplicate summary note.")
@@ -1117,6 +1118,22 @@ func pickInlineAnchor(validPositionsByFile map[string]inlinePositions) (string, 
 
 func extractHunkContext(changes []diffparse.FileChange, filePath string, line int) string {
 	if filePath == "" || line <= 0 {
+		for _, c := range changes {
+			if c.NewName == "" {
+				continue
+			}
+			for _, h := range c.Hunks {
+				anchor := h.NewStart
+				if anchor <= 0 {
+					continue
+				}
+				fallback := extractHunkContext(changes, c.NewName, anchor)
+				if strings.HasPrefix(fallback, "No local hunk slice found") {
+					continue
+				}
+				return fmt.Sprintf("Thread has no inline anchor; using representative MR hunk from %s:%d.\n%s", c.NewName, anchor, fallback)
+			}
+		}
 		return "No inline hunk available for this thread."
 	}
 	var out []string
@@ -2432,6 +2449,73 @@ func filterOutMetaContextFindings(comments []core.FileComment) []core.FileCommen
 		out = append(out, c)
 	}
 	return out
+}
+
+func filterLowSignalInlineFindings(
+	comments []core.FileComment,
+	valid map[string]inlinePositions,
+) []core.FileComment {
+	if len(comments) == 0 {
+		return comments
+	}
+	out := make([]core.FileComment, 0, len(comments))
+	for _, c := range comments {
+		if isLowSignalInlineFinding(c, valid) {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+func isLowSignalInlineFinding(c core.FileComment, valid map[string]inlinePositions) bool {
+	msg := strings.TrimSpace(c.Message)
+	if msg == "" {
+		return false
+	}
+	lower := strings.ToLower(msg)
+	if !looksGenericInlineFinding(lower) {
+		return false
+	}
+	if strings.Contains(msg, "`") {
+		return false
+	}
+	path := strings.TrimSpace(strings.TrimPrefix(c.FilePath, "./"))
+	fp, ok := valid[path]
+	if !ok || len(fp.content) == 0 {
+		return false
+	}
+	tokens := anchorTokensFromMessage(msg)
+	if len(tokens) == 0 {
+		return true
+	}
+	for _, content := range fp.content {
+		lc := strings.ToLower(content)
+		for _, tok := range tokens {
+			if strings.Contains(lc, tok) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func looksGenericInlineFinding(lowerMsg string) bool {
+	patterns := []string{
+		"may affect global request handling",
+		"ensure backward compatibility",
+		"verify all routes",
+		"without corresponding validation or explanation",
+		"risks breaking the pipeline",
+		"altering job execution semantics",
+		"please clarify what specific functionality",
+	}
+	for _, p := range patterns {
+		if strings.Contains(lowerMsg, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func isMetaContextFinding(message string) bool {
