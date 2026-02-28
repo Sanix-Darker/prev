@@ -26,9 +26,6 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 				args[0],
 				cmd.Help,
 			)
-			if err != nil {
-				common.LogError(err.Error(), true, false, nil)
-			}
 
 			configGuidelines := ""
 			if conf.Viper != nil {
@@ -47,7 +44,7 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 				common.LogInfo(prompt, nil)
 			}
 
-			callProvider(conf, prompt)
+			callProvider(conf, "")
 		},
 	}
 
