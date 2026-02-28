@@ -179,6 +179,8 @@ func TestEnrich_NewFile(t *testing.T) {
 	require.Len(t, enriched, 1)
 	assert.Equal(t, "go", enriched[0].Language)
 	assert.True(t, enriched[0].IsNew)
+	assert.NotEmpty(t, enriched[0].EnrichedHunks)
+	assert.Contains(t, FormatEnrichedForReview(enriched[0]), "```go")
 }
 
 func TestEnrich_DeletedFile(t *testing.T) {
@@ -358,4 +360,29 @@ func TestFormatEnrichedForReview(t *testing.T) {
 	assert.Contains(t, output, "- 5 | old line")
 	assert.Contains(t, output, "// context after")
 	assert.Contains(t, output, "```go")
+}
+
+func TestFallbackEnrichedHunks(t *testing.T) {
+	hunks := []Hunk{
+		{
+			NewStart: 0,
+			NewLines: 0,
+			Lines: []DiffLine{
+				{Type: LineAdded, Content: "x", NewLineNo: 1},
+			},
+		},
+		{
+			NewStart: 10,
+			NewLines: 2,
+			Lines: []DiffLine{
+				{Type: LineAdded, Content: "y", NewLineNo: 10},
+			},
+		},
+	}
+	got := fallbackEnrichedHunks(hunks)
+	require.Len(t, got, 2)
+	assert.Equal(t, 1, got[0].StartLine)
+	assert.Equal(t, 1, got[0].EndLine)
+	assert.Equal(t, 10, got[1].StartLine)
+	assert.Equal(t, 11, got[1].EndLine)
 }

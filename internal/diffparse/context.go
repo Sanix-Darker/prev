@@ -132,7 +132,10 @@ func EnrichFileChanges(
 		// Get full file content from target branch
 		content, err := core.GetFileContent(repoPath, targetBranch, name)
 		if err != nil {
-			// Non-fatal: proceed without content
+			// Non-fatal: keep raw hunks so review context remains actionable.
+			efc.EnrichedHunks = fallbackEnrichedHunks(fc.Hunks)
+			formatted := FormatEnrichedForReview(efc)
+			efc.TokenEstimate = len(formatted) / 4
 			enriched = append(enriched, efc)
 			continue
 		}
@@ -145,6 +148,9 @@ func EnrichFileChanges(
 
 		// Enrich hunks with context
 		efc.EnrichedHunks = enrichHunks(fc.Hunks, newLines, contextLines)
+		if len(efc.EnrichedHunks) == 0 && len(fc.Hunks) > 0 {
+			efc.EnrichedHunks = fallbackEnrichedHunks(fc.Hunks)
+		}
 
 		// Estimate tokens from formatted output
 		formatted := FormatEnrichedForReview(efc)
@@ -170,6 +176,29 @@ func EnrichFileChanges(
 	}
 
 	return enriched, nil
+}
+
+func fallbackEnrichedHunks(hunks []Hunk) []EnrichedHunk {
+	if len(hunks) == 0 {
+		return nil
+	}
+	out := make([]EnrichedHunk, 0, len(hunks))
+	for _, h := range hunks {
+		start := h.NewStart
+		if start <= 0 {
+			start = 1
+		}
+		end := h.NewStart + h.NewLines - 1
+		if end < start {
+			end = start
+		}
+		out = append(out, EnrichedHunk{
+			Hunk:      h,
+			StartLine: start,
+			EndLine:   end,
+		})
+	}
+	return out
 }
 
 // enrichHunks adds context lines to hunks and merges overlapping ones.
