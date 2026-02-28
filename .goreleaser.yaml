@@ -68,6 +68,9 @@ brews:
       owner: sanix-darker
       name: homebrew-tap
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    # Avoid failing whole releases when tap credentials are not available/valid.
+    # Enable explicitly with ENABLE_HOMEBREW=true and a valid TAP_GITHUB_TOKEN.
+    disable: "{{ if or (ne .Env.ENABLE_HOMEBREW \"true\") (not .Env.TAP_GITHUB_TOKEN) }}true{{ end }}"
     goarm: "7"
     homepage: https://github.com/sanix-darker/prev
     description: AI-powered code review CLI tool

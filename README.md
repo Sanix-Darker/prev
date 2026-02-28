@@ -26,6 +26,10 @@ docker build -t prev .
 docker run --rm -e OPENAI_API_KEY=sk-xxx prev version
 ```
 
+For maintainers: Homebrew tap publishing in release automation is guarded by
+repository variable `ENABLE_HOMEBREW=true` and secret `TAP_GITHUB_TOKEN`. If
+not enabled, release artifacts still publish and Homebrew is skipped.
+
 ### Quick Start
 
 ```bash
