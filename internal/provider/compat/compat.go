@@ -24,7 +24,6 @@
 package compat
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -253,12 +252,19 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 		defer close(errCh)
 
 		body := p.buildRequest(req, true)
-		bodyBytes, _ := json.Marshal(body)
+		bodyBytes, err := json.Marshal(body)
+		if err != nil {
+			errCh <- &provider.ProviderError{
+				Code: provider.ErrCodeUnknown, Message: "failed to marshal request",
+				Provider: p.name, Cause: err,
+			}
+			return
+		}
 
 		httpReq, err := http.NewRequestWithContext(
 			ctx, http.MethodPost,
 			p.baseURL+"/chat/completions",
-			strings.NewReader(string(bodyBytes)),
+			bytes.NewReader(bodyBytes),
 		)
 		if err != nil {
 			errCh <- &provider.ProviderError{
@@ -273,7 +279,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 		}
 		httpReq.Header.Set("Accept", "text/event-stream")
 
-		httpResp, err := http.DefaultClient.Do(httpReq)
+		httpResp, err := p.client.Do(httpReq)
 		if err != nil {
 			errCh <- &provider.ProviderError{
 				Code: provider.ErrCodeProviderUnavailable, Message: "stream request failed",
@@ -290,7 +296,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 			return
 		}
 
-		scanner := bufio.NewScanner(httpResp.Body)
+		scanner := provider.NewSSEScanner(httpResp.Body)
 		for scanner.Scan() {
 			line := scanner.Text()
 			if !strings.HasPrefix(line, "data: ") {
@@ -298,7 +304,9 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 			}
 			data := strings.TrimPrefix(line, "data: ")
 			if data == "[DONE]" {
-				chunks <- provider.StreamChunk{Done: true}
+				if !provider.SendStreamChunk(ctx, chunks, provider.StreamChunk{Done: true}) {
+					errCh <- ctx.Err()
+				}
 				return
 			}
 
@@ -318,11 +326,9 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 				sc.Done = true
 			}
 
-			select {
-			case <-ctx.Done():
+			if !provider.SendStreamChunk(ctx, chunks, sc) {
 				errCh <- ctx.Err()
 				return
-			case chunks <- sc:
 			}
 		}
 

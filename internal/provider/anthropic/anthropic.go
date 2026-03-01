@@ -13,7 +13,6 @@
 package anthropic
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -154,10 +153,10 @@ func NewProvider(v *config.Store) (provider.AIProvider, error) {
 // Info returns provider metadata.
 func (p *Provider) Info() provider.ProviderInfo {
 	return provider.ProviderInfo{
-		Name:             "anthropic",
-		DisplayName:      "Anthropic (Claude)",
-		Description:      "Anthropic Messages API (Claude Opus, Sonnet, Haiku)",
-		DefaultModel:     "claude-sonnet-4-20250514",
+		Name:              "anthropic",
+		DisplayName:       "Anthropic (Claude)",
+		Description:       "Anthropic Messages API (Claude Opus, Sonnet, Haiku)",
+		DefaultModel:      "claude-sonnet-4-20250514",
 		SupportsStreaming: true,
 	}
 }
@@ -247,12 +246,19 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 		defer close(errCh)
 
 		body := p.buildRequest(req, true)
-		bodyBytes, _ := json.Marshal(body)
+		bodyBytes, err := json.Marshal(body)
+		if err != nil {
+			errCh <- &provider.ProviderError{
+				Code: provider.ErrCodeUnknown, Message: "failed to marshal request",
+				Provider: "anthropic", Cause: err,
+			}
+			return
+		}
 
 		httpReq, err := http.NewRequestWithContext(
 			ctx, http.MethodPost,
 			p.baseURL+"/v1/messages",
-			strings.NewReader(string(bodyBytes)),
+			bytes.NewReader(bodyBytes),
 		)
 		if err != nil {
 			errCh <- &provider.ProviderError{
@@ -266,7 +272,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 		httpReq.Header.Set("anthropic-version", anthropicVersion)
 		httpReq.Header.Set("Accept", "text/event-stream")
 
-		httpResp, err := http.DefaultClient.Do(httpReq)
+		httpResp, err := p.client.Do(httpReq)
 		if err != nil {
 			errCh <- &provider.ProviderError{
 				Code: provider.ErrCodeProviderUnavailable, Message: "stream request failed",
@@ -286,7 +292,7 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 		// Anthropic SSE format:
 		//   event: <event_type>
 		//   data: <json>
-		scanner := bufio.NewScanner(httpResp.Body)
+		scanner := provider.NewSSEScanner(httpResp.Body)
 		var currentEvent string
 
 		for scanner.Scan() {
@@ -310,11 +316,9 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 			switch currentEvent {
 			case "content_block_delta":
 				if evt.Delta.Type == "text_delta" {
-					select {
-					case <-ctx.Done():
+					if !provider.SendStreamChunk(ctx, chunks, provider.StreamChunk{Content: evt.Delta.Text}) {
 						errCh <- ctx.Err()
 						return
-					case chunks <- provider.StreamChunk{Content: evt.Delta.Text}:
 					}
 				}
 
@@ -330,11 +334,9 @@ func (p *Provider) CompleteStream(ctx context.Context, req provider.CompletionRe
 						TotalTokens:      evt.Usage.InputTokens + evt.Usage.OutputTokens,
 					}
 				}
-				select {
-				case <-ctx.Done():
+				if !provider.SendStreamChunk(ctx, chunks, sc) {
 					errCh <- ctx.Err()
 					return
-				case chunks <- sc:
 				}
 
 			case "message_stop":

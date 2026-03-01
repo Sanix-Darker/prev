@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/core"
@@ -39,17 +38,5 @@ func ExtractCommitHandler(
 
 // filterCommitDiffByPath filters a unified diff to only include files matching the given path prefix.
 func filterCommitDiffByPath(diff string, pathFilter string) string {
-	var result []string
-	var include bool
-
-	for _, line := range strings.Split(diff, "\n") {
-		if strings.HasPrefix(line, "diff --git") {
-			include = strings.Contains(line, pathFilter)
-		}
-		if include {
-			result = append(result, line)
-		}
-	}
-
-	return strings.Join(result, "\n")
+	return filterUnifiedDiffByPath(diff, pathFilter)
 }
