@@ -159,7 +159,6 @@ func buildEffectiveConfig(conf config.Config) map[string]interface{} {
 			"serena_mode":       strOrDefault(v.GetString("review.serena_mode"), "auto"),
 			"context_lines":     intOrDefault(v.GetInt("review.context_lines"), 10),
 			"max_tokens":        intOrDefault(v.GetInt("review.max_tokens"), 80000),
-			"mention_handle":    strings.TrimSpace(v.GetString("review.mention_handle")),
 			"conventions": map[string]interface{}{
 				"labels": stringSliceOrDefault(v.GetStringSlice("review.conventions.labels"), []string{"issue", "suggestion", "remark"}),
 			},

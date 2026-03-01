@@ -16,31 +16,25 @@ import (
 )
 
 func TestResolveMentionHandle_FromConfig(t *testing.T) {
-	v := config.NewStore()
-	v.Set("review.mention_handle", "@ange.saadjio")
-	conf := config.Config{Viper: v}
-
-	assert.Equal(t, "ange.saadjio", resolveMentionHandle(conf))
-}
-
-func TestResolveMentionHandle_EnvOverridesConfig(t *testing.T) {
-	t.Setenv("PREV_MENTION_HANDLE", "@bot-user")
-	v := config.NewStore()
-	v.Set("review.mention_handle", "@ange.saadjio")
-	conf := config.Config{Viper: v}
-
-	assert.Equal(t, "bot-user", resolveMentionHandle(conf))
-}
-
-func TestResolveMentionHandle_EmptyWhenUnset(t *testing.T) {
 	conf := config.Config{Viper: config.NewStore()}
-	assert.Equal(t, "", resolveMentionHandle(conf))
+	assert.Equal(t, "prev", resolveMentionHandle(conf))
+}
+
+func TestResolveMentionHandle_EnvDoesNotOverrideFixedHandle(t *testing.T) {
+	t.Setenv("PREV_BOT_USERNAME", "@bot-user")
+	conf := config.Config{Viper: config.NewStore()}
+	assert.Equal(t, "prev", resolveMentionHandle(conf))
+}
+
+func TestResolveMentionHandle_FixedWhenUnset(t *testing.T) {
+	conf := config.Config{Viper: config.NewStore()}
+	assert.Equal(t, "prev", resolveMentionHandle(conf))
 }
 
 func TestHasMentionCommand(t *testing.T) {
-	assert.True(t, hasMentionCommand("@ange.saadjio review this", "ange.saadjio", "review"))
-	assert.False(t, hasMentionCommand("@ange.saadjio review this", "", "review"))
-	assert.False(t, hasMentionCommand("@someoneelse review this", "ange.saadjio", "review"))
+	assert.True(t, hasMentionCommand("@prev review this", "prev", "review"))
+	assert.False(t, hasMentionCommand("@prev review this", "", "review"))
+	assert.False(t, hasMentionCommand("@someoneelse review this", "prev", "review"))
 }
 
 func TestInlineKey_IgnoresBody(t *testing.T) {
@@ -55,10 +49,10 @@ func TestInlineSeverityKey_IncludesSeverity(t *testing.T) {
 	assert.NotEqual(t, k1, k2)
 }
 
-func TestIsReplyRequest_WithQuestionMention(t *testing.T) {
-	assert.True(t, isReplyRequest("@ange.saadjio you see other issue ?", "ange.saadjio"))
-	assert.True(t, isReplyRequest("ange.saadjio can you check this?", "ange.saadjio"))
-	assert.False(t, isReplyRequest("@someoneelse can you check this?", "ange.saadjio"))
+func TestIsReplyRequest_OnlyExplicitReplyCommand(t *testing.T) {
+	assert.True(t, isReplyRequest("@prev reply", "prev"))
+	assert.False(t, isReplyRequest("@prev can you check this?", "prev"))
+	assert.False(t, isReplyRequest("@someoneelse reply", "prev"))
 }
 
 func TestConciseInlineBody(t *testing.T) {
@@ -299,13 +293,13 @@ func TestRefineInlinePositionByMessage_KeepExactAddedAnchor(t *testing.T) {
 
 func TestIsMRPaused_RespectsPauseResumeOrder(t *testing.T) {
 	notes := []vcs.MRNote{
-		{Body: "@ange.saadjio pause"},
+		{Body: "@prev pause"},
 		{Body: "some other note"},
 	}
-	assert.True(t, isMRPaused(notes, "ange.saadjio"))
+	assert.True(t, isMRPaused(notes, "prev"))
 
-	notes = append(notes, vcs.MRNote{Body: "@ange.saadjio resume"})
-	assert.False(t, isMRPaused(notes, "ange.saadjio"))
+	notes = append(notes, vcs.MRNote{Body: "@prev resume"})
+	assert.False(t, isMRPaused(notes, "prev"))
 }
 
 func TestPausedDiscussions_ScopedPerThread(t *testing.T) {
@@ -313,18 +307,18 @@ func TestPausedDiscussions_ScopedPerThread(t *testing.T) {
 		{
 			ID: "d1",
 			Notes: []vcs.MRDiscussionNote{
-				{Body: "@ange.saadjio pause"},
+				{Body: "@prev pause"},
 			},
 		},
 		{
 			ID: "d2",
 			Notes: []vcs.MRDiscussionNote{
-				{Body: "@ange.saadjio pause"},
-				{Body: "@ange.saadjio resume"},
+				{Body: "@prev pause"},
+				{Body: "@prev resume"},
 			},
 		},
 	}
-	paused := pausedDiscussions(discussions, "ange.saadjio")
+	paused := pausedDiscussions(discussions, "prev")
 	assert.True(t, paused["d1"])
 	assert.False(t, paused["d2"])
 }
@@ -495,6 +489,34 @@ func TestBuildInlineCommentBody_PreservesSuggestionPadding(t *testing.T) {
 	assert.Contains(t, body, "```suggestion\n    $value = trim($value);\n\treturn $value;\n```")
 }
 
+func TestRebaseSuggestionIndentation_RebasesToAnchor(t *testing.T) {
+	anchor := "        $title = trim($payload['title'] ?? '');"
+	suggestion := "  if ($title === '') {\n      $title = 'Untitled';\n  }"
+
+	got := rebaseSuggestionIndentation(suggestion, anchor)
+	assert.Equal(t,
+		"        if ($title === '') {\n            $title = 'Untitled';\n        }",
+		got,
+	)
+}
+
+func TestRebaseSuggestionIndentation_PreservesRelativePadding(t *testing.T) {
+	anchor := "\t\tvalue := data[idx]"
+	suggestion := "    if value == nil {\n        return errors.New(\"bad\")\n    }"
+
+	got := rebaseSuggestionIndentation(suggestion, anchor)
+	assert.Equal(t,
+		"\t\tif value == nil {\n\t\t    return errors.New(\"bad\")\n\t\t}",
+		got,
+	)
+}
+
+func TestRebaseSuggestionIndentation_NoAnchorIndent(t *testing.T) {
+	suggestion := "    x := 1\n    y := 2"
+	got := rebaseSuggestionIndentation(suggestion, "func main() {")
+	assert.Equal(t, suggestion, got)
+}
+
 func TestNormalizeFixPromptMode(t *testing.T) {
 	assert.Equal(t, "off", normalizeFixPromptMode(""))
 	assert.Equal(t, "off", normalizeFixPromptMode("invalid"))
@@ -526,8 +548,9 @@ func TestBuildAgentFixPrompt_AutoModeSkipsWhenSuggestionExists(t *testing.T) {
 	assert.Equal(t, "", buildAgentFixPrompt(grp, "auto"))
 }
 
-func TestDetectGitLabMCPStatus_FromEnv(t *testing.T) {
-	got := detectGitLabMCPStatus(
+func TestDetectVCSContextStatus_FromEnv(t *testing.T) {
+	got := detectVCSContextStatus(
+		"gitlab",
 		func(string) (string, error) { return "", fmt.Errorf("not found") },
 		func(k string) string {
 			if k == "GITLAB_MCP_URL" {
@@ -539,8 +562,9 @@ func TestDetectGitLabMCPStatus_FromEnv(t *testing.T) {
 	assert.Contains(t, got, "configured via GITLAB_MCP_URL")
 }
 
-func TestDetectGitLabMCPStatus_FromBinary(t *testing.T) {
-	got := detectGitLabMCPStatus(
+func TestDetectVCSContextStatus_FromBinary(t *testing.T) {
+	got := detectVCSContextStatus(
+		"gitlab",
 		func(bin string) (string, error) {
 			if bin == "gitlab-mcp" {
 				return "/usr/local/bin/gitlab-mcp", nil
@@ -552,12 +576,22 @@ func TestDetectGitLabMCPStatus_FromBinary(t *testing.T) {
 	assert.Contains(t, got, "detected local server binary")
 }
 
-func TestDetectGitLabMCPStatus_Fallback(t *testing.T) {
-	got := detectGitLabMCPStatus(
+func TestDetectVCSContextStatus_Fallback(t *testing.T) {
+	got := detectVCSContextStatus(
+		"gitlab",
 		func(string) (string, error) { return "", fmt.Errorf("not found") },
 		func(string) string { return "" },
 	)
 	assert.Contains(t, got, "not detected/configured")
+}
+
+func TestDetectVCSContextStatus_GitHub(t *testing.T) {
+	got := detectVCSContextStatus(
+		"github",
+		func(string) (string, error) { return "", fmt.Errorf("not found") },
+		func(string) string { return "" },
+	)
+	assert.Contains(t, got, "GitHub context")
 }
 
 func TestHasTopLevelMarker(t *testing.T) {
@@ -583,6 +617,48 @@ func TestExistingInlineSeverityKeys(t *testing.T) {
 	_, okNoSev := keys[inlineSeverityKey("a/b.go", 11, "MEDIUM")]
 	assert.True(t, okHigh)
 	assert.False(t, okNoSev)
+}
+
+func TestExistingInlineKeys_IgnoresResolvedDiscussions(t *testing.T) {
+	discussions := []vcs.MRDiscussion{
+		{
+			ID: "d1",
+			Notes: []vcs.MRDiscussionNote{
+				{FilePath: "a/b.go", Line: 10, Body: "[HIGH] Active finding", Resolvable: true, Resolved: false},
+			},
+		},
+		{
+			ID: "d2",
+			Notes: []vcs.MRDiscussionNote{
+				{FilePath: "a/b.go", Line: 20, Body: "[HIGH] Resolved finding", Resolvable: true, Resolved: true},
+			},
+		},
+	}
+
+	keys := existingInlineKeys(discussions)
+	_, hasActive := keys[inlineKey("a/b.go", 10, "")]
+	_, hasResolved := keys[inlineKey("a/b.go", 20, "")]
+	assert.True(t, hasActive)
+	assert.False(t, hasResolved)
+}
+
+func TestDiscussionResolved_UsesLatestResolvableState(t *testing.T) {
+	d1 := vcs.MRDiscussion{
+		Notes: []vcs.MRDiscussionNote{
+			{Body: "meta", Resolvable: false},
+			{Body: "older", Resolvable: true, Resolved: false},
+			{Body: "latest", Resolvable: true, Resolved: true},
+		},
+	}
+	assert.True(t, discussionResolved(d1))
+
+	d2 := vcs.MRDiscussion{
+		Notes: []vcs.MRDiscussionNote{
+			{Body: "older", Resolvable: true, Resolved: true},
+			{Body: "latest", Resolvable: true, Resolved: false},
+		},
+	}
+	assert.False(t, discussionResolved(d2))
 }
 
 func TestCollectReusableThreads_FiltersPausedAndResolved(t *testing.T) {

@@ -53,7 +53,6 @@ This document is the source-of-truth for `prev` runtime configuration as impleme
 | `review.serena_mode` | string | `auto` | none | `--serena` | symbol-level context enrichment |
 | `review.context_lines` | int | `10` | none | `--context` | context enrichment |
 | `review.max_tokens` | int | `80000` | none | `--max-tokens` | enrichment token budget |
-| `review.mention_handle` | string | empty | `PREV_MENTION_HANDLE` | none | thread commands (`@bot ...`) |
 | `review.conventions.labels` | list[string] | `["issue","suggestion","remark"]` | none | none | finding kind filter |
 | `review.guidelines` | multiline string | empty | none | none | prompt injection |
 | `debug` | bool | `false` | none | `--debug` | runtime logging behavior |
@@ -61,6 +60,8 @@ This document is the source-of-truth for `prev` runtime configuration as impleme
 | `max_key_points` | int | `3` | none | none | output shaping |
 | `max_characters_per_key_point` | int | `100` | none | none | output shaping |
 | `explain` | bool | `false` | none | none | output shaping |
+
+Thread command handle is fixed to `@prev` (for example `@prev reply`, `@prev pause`).
 
 ### MR Review Memory (CLI Parameters)
 

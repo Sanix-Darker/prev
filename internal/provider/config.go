@@ -194,9 +194,6 @@ review:
   # serena_mode: "auto"
   # context_lines: 10
   # max_tokens: 80000
-  # Optional @mention handle used by MR thread commands, e.g. "@my-bot review".
-  # When empty, mention-driven actions are disabled.
-  mention_handle: ""
   conventions:
     labels: ["issue", "suggestion", "remark"]
   # Optional custom instructions injected into review prompts.

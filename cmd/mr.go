@@ -31,6 +31,7 @@ const (
 	prevSummaryMarker   = "<!-- prev:summary -->"
 	prevReuseMarker     = "<!-- prev:reuse -->"
 	prevBaselinePrefix  = "<!-- prev:baseline "
+	prevMentionHandle   = "prev"
 )
 
 func init() {
@@ -220,7 +221,7 @@ func newMRReviewCmd() *cobra.Command {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Println(detectGitLabMCPStatus(exec.LookPath, os.Getenv))
+			fmt.Println(detectVCSContextStatus(vcsProvider.Info().Name, exec.LookPath, os.Getenv))
 			mentionHandle := resolveMentionHandle(conf)
 
 			discussions, err := vcsProvider.ListMRDiscussions(projectID, mrIID)
@@ -489,7 +490,9 @@ func newMRReviewCmd() *cobra.Command {
 				skippedExisting := 0
 				skippedRunDup := 0
 				for _, grp := range inlineGroups {
-					body := buildInlineCommentBody(grp.Severity, grp.Message, grp.Suggestion, vcsProvider.FormatSuggestionBlock)
+					anchorContent := validPositionsByFile[grp.FilePath].content[grp.NewLine]
+					alignedSuggestion := rebaseSuggestionIndentation(grp.Suggestion, anchorContent)
+					body := buildInlineCommentBody(grp.Severity, grp.Message, alignedSuggestion, vcsProvider.FormatSuggestionBlock)
 					if fp := buildAgentFixPrompt(grp, fixPromptMode); fp != "" {
 						body += "\n\nAI agent fix prompt:\n```text\n" + fp + "\n```"
 					}
@@ -909,18 +912,8 @@ type reusableThread struct {
 }
 
 func resolveMentionHandle(conf config.Config) string {
-	h := strings.TrimSpace(os.Getenv("PREV_MENTION_HANDLE"))
-	if h == "" {
-		h = strings.TrimSpace(os.Getenv("PREV_BOT_USERNAME"))
-	}
-	if h != "" {
-		return strings.TrimPrefix(h, "@")
-	}
-	if conf.Viper == nil {
-		return ""
-	}
-	h = strings.TrimSpace(conf.Viper.GetString("review.mention_handle"))
-	return strings.TrimPrefix(h, "@")
+	_ = conf
+	return prevMentionHandle
 }
 
 func collectCarryOverFindings(
@@ -942,6 +935,9 @@ func collectCarryOverFindings(
 	seen := map[string]struct{}{}
 	var out []carryOverFinding
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		if pausedThreads[d.ID] {
 			continue
 		}
@@ -1015,6 +1011,9 @@ func postCarryOverReminders(
 	}
 	hasReminder := map[string]struct{}{}
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		for _, n := range d.Notes {
 			if strings.Contains(strings.ToLower(n.Body), strings.ToLower(prevCarryOverMarker)) {
 				hasReminder[d.ID] = struct{}{}
@@ -1057,6 +1056,9 @@ func processReplyCommands(
 ) int {
 	posted := 0
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		if pausedThreads[d.ID] {
 			continue
 		}
@@ -1350,26 +1352,7 @@ func hasMentionCommand(body, mentionHandle, command string) bool {
 }
 
 func isReplyRequest(body, mentionHandle string) bool {
-	if hasMentionCommand(body, mentionHandle, "reply") {
-		return true
-	}
-	if hasMentionCommand(body, mentionHandle, "pause") ||
-		hasMentionCommand(body, mentionHandle, "resume") ||
-		hasMentionCommand(body, mentionHandle, "review") ||
-		hasMentionCommand(body, mentionHandle, "summary") {
-		return false
-	}
-	handle := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(mentionHandle), "@"))
-	if handle == "" {
-		return false
-	}
-	b := strings.ToLower(body)
-	hasMention := strings.Contains(b, "@"+handle) ||
-		regexp.MustCompile(`\b`+regexp.QuoteMeta(handle)+`\b`).MatchString(b)
-	if !hasMention {
-		return false
-	}
-	return true
+	return hasMentionCommand(body, mentionHandle, "reply")
 }
 
 func isBotAuthor(author, mentionHandle string) bool {
@@ -1488,6 +1471,9 @@ func severityRank(sev string) int {
 func existingInlineKeys(discussions []vcs.MRDiscussion) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		for _, n := range d.Notes {
 			if n.FilePath == "" || n.Line <= 0 {
 				continue
@@ -1501,6 +1487,9 @@ func existingInlineKeys(discussions []vcs.MRDiscussion) map[string]struct{} {
 func existingInlineSeverityKeys(discussions []vcs.MRDiscussion) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		for _, n := range d.Notes {
 			if n.FilePath == "" || n.Line <= 0 {
 				continue
@@ -1520,6 +1509,9 @@ func collectReusableThreads(
 ) []reusableThread {
 	var out []reusableThread
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		if pausedThreads[d.ID] {
 			continue
 		}
@@ -1550,6 +1542,17 @@ func collectReusableThreads(
 		}
 	}
 	return out
+}
+
+func discussionResolved(d vcs.MRDiscussion) bool {
+	for i := len(d.Notes) - 1; i >= 0; i-- {
+		n := d.Notes[i]
+		if !n.Resolvable {
+			continue
+		}
+		return n.Resolved
+	}
+	return false
 }
 
 func matchReusableThread(candidates []reusableThread, grp inlineGroup) (reusableThread, bool) {
@@ -1719,6 +1722,64 @@ func normalizeSuggestion(s string) string {
 		return ""
 	}
 	return strings.Join(lines[start:end], "\n")
+}
+
+func rebaseSuggestionIndentation(suggestion string, anchorLine string) string {
+	suggestion = normalizeSuggestion(suggestion)
+	if suggestion == "" {
+		return ""
+	}
+	anchorIndent := leadingIndent(anchorLine)
+	if anchorIndent == "" {
+		return suggestion
+	}
+	lines := strings.Split(strings.ReplaceAll(suggestion, "\r\n", "\n"), "\n")
+	nonEmpty := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			nonEmpty = append(nonEmpty, line)
+		}
+	}
+	if len(nonEmpty) == 0 {
+		return suggestion
+	}
+	commonIndent := leadingIndent(nonEmpty[0])
+	for i := 1; i < len(nonEmpty); i++ {
+		commonIndent = commonPrefix(commonIndent, leadingIndent(nonEmpty[i]))
+		if commonIndent == "" {
+			break
+		}
+	}
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		lines[i] = anchorIndent + strings.TrimPrefix(line, commonIndent)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func leadingIndent(s string) string {
+	i := 0
+	for i < len(s) {
+		if s[i] != ' ' && s[i] != '\t' {
+			break
+		}
+		i++
+	}
+	return s[:i]
+}
+
+func commonPrefix(a, b string) string {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	i := 0
+	for i < n && a[i] == b[i] {
+		i++
+	}
+	return a[:i]
 }
 
 func normalizeFixPromptMode(mode string) string {
@@ -2842,10 +2903,14 @@ Prior full review output:
 	return out, nil
 }
 
-func detectGitLabMCPStatus(
+func detectVCSContextStatus(
+	vcsName string,
 	lookPath func(string) (string, error),
 	getenv func(string) string,
 ) string {
+	if strings.EqualFold(strings.TrimSpace(vcsName), "github") {
+		return "GitHub context: using standard GitHub API + Serena/local context enrichment."
+	}
 	if url := strings.TrimSpace(getenv("GITLAB_MCP_URL")); url != "" {
 		return fmt.Sprintf("GitLab MCP: configured via GITLAB_MCP_URL (%s).", url)
 	}

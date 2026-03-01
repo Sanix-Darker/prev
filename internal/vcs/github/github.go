@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -168,9 +169,67 @@ func (p *Provider) FetchMRRawDiff(projectID string, mrIID int64) (string, error)
 }
 
 func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDiscussion, error) {
-	// GitHub has review comments but no direct thread abstraction like GitLab.
-	// Return empty to avoid misleading thread reuse logic.
-	return []vcs.MRDiscussion{}, nil
+	type reviewComment struct {
+		ID           int64  `json:"id"`
+		InReplyToID  *int64 `json:"in_reply_to_id"`
+		Body         string `json:"body"`
+		Path         string `json:"path"`
+		Line         int    `json:"line"`
+		OriginalLine int    `json:"original_line"`
+		User         struct {
+			Login string `json:"login"`
+		} `json:"user"`
+	}
+
+	threads := map[string][]vcs.MRDiscussionNote{}
+	order := make([]string, 0, 64)
+	page := 1
+	for {
+		endpoint := fmt.Sprintf("/repos/%s/pulls/%d/comments?per_page=100&page=%d", projectID, mrIID, page)
+		var comments []reviewComment
+		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &comments)
+		if err != nil {
+			return nil, fmt.Errorf("github: failed to list PR review comments: %w", err)
+		}
+
+		for _, c := range comments {
+			threadID := c.ID
+			if c.InReplyToID != nil && *c.InReplyToID > 0 {
+				threadID = *c.InReplyToID
+			}
+			key := strconv.FormatInt(threadID, 10)
+			if _, ok := threads[key]; !ok {
+				order = append(order, key)
+			}
+			line := c.Line
+			if line <= 0 {
+				line = c.OriginalLine
+			}
+			threads[key] = append(threads[key], vcs.MRDiscussionNote{
+				ID:         c.ID,
+				Author:     c.User.Login,
+				Body:       c.Body,
+				FilePath:   c.Path,
+				Line:       line,
+				Resolvable: true,
+				Resolved:   false,
+			})
+		}
+
+		if !hasNextPage(resp.Header.Get("Link")) {
+			break
+		}
+		page++
+	}
+
+	out := make([]vcs.MRDiscussion, 0, len(order))
+	for _, id := range order {
+		out = append(out, vcs.MRDiscussion{
+			ID:    id,
+			Notes: threads[id],
+		})
+	}
+	return out, nil
 }
 
 func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, error) {
@@ -285,7 +344,22 @@ func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.Dif
 }
 
 func (p *Provider) ReplyToMRDiscussion(projectID string, mrIID int64, discussionID, body string) error {
-	return fmt.Errorf("github: reply to discussion is not supported")
+	parentID, err := strconv.ParseInt(strings.TrimSpace(discussionID), 10, 64)
+	if err != nil || parentID <= 0 {
+		return fmt.Errorf("github: invalid discussion id %q for reply", discussionID)
+	}
+	payload := map[string]interface{}{
+		"body":        body,
+		"in_reply_to": parentID,
+	}
+	if err := p.postJSON(context.Background(),
+		fmt.Sprintf("/repos/%s/pulls/%d/comments", projectID, mrIID),
+		payload,
+		nil,
+	); err != nil {
+		return fmt.Errorf("github: failed to reply to discussion %s: %w", discussionID, err)
+	}
+	return nil
 }
 
 // FormatSuggestionBlock returns a GitHub-native suggestion code block.
