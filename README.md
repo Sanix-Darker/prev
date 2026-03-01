@@ -7,6 +7,26 @@ AI-powered code review CLI tool for diffs, commits, branches, and merge/pull req
 
 Supports multiple AI providers: **OpenAI**, **Anthropic (Claude)**, **Azure OpenAI**, **Gemini**, **Ollama**, **Groq**, **Together**, **LM Studio**, and any **OpenAI-compatible** API.
 
+### How prev Compares to Other Open-Source AI Reviewers
+
+| Feature | prev | PR-Agent (Qodo) | CodeRabbit | ai-pr-reviewer | Others |
+|---------|:----:|:----------------:|:----------:|:--------------:|:------:|
+| Two-pass review pipeline (walkthrough + detailed) | Yes | No | Yes | No | No |
+| AI providers (OpenAI, Claude, Gemini, Ollama, Groq...) | 9 | 3-4 | Proprietary | 1 | 1-2 |
+| Offline/local LLM support (Ollama, LM Studio) | Yes | Limited | No | No | Rare |
+| Persistent cross-MR review memory | Yes | No | No | No | No |
+| Symbol impact mapping (function reference tracking) | Yes | No | No | No | No |
+| Concurrency/race-risk detection (Go) | Yes | No | No | No | No |
+| Serena MCP integration (symbol-level context) | Yes | No | No | No | No |
+| Thread continuity (reuse threads across pushes) | Yes | Partial | Yes | No | No |
+| Auto-discover repo guidelines (CLAUDE.md, AGENTS.md, copilot-instructions) | Yes | No | Partial | No | No |
+| Strictness levels (strict/normal/lenient) | Yes | Partial | Yes | No | Rare |
+| AI fix prompt blocks in inline comments | Yes | Yes | Yes | No | No |
+| Hunk consolidation (merge findings per hunk) | Yes | No | Partial | No | No |
+| Token-aware batching | Yes | Yes | Yes | No | Rare |
+| Config hierarchy (CLI > env > file > defaults) | Yes | Partial | SaaS | Minimal | Varies |
+| CLI-native (no SaaS dependency) | Yes | Yes | No | GitHub Action | Varies |
+
 ### Installation
 
 ```bash
@@ -88,6 +108,10 @@ prev branch feature-branch --strictness strict
 | `prev config init` | Create default config file |
 | `prev config effective` | Show merged effective configuration (with env/flags applied) |
 | `prev config validate` | Validate configuration keys and provider requirements |
+| `prev memory show` | Show persistent review memory (markdown or JSON) |
+| `prev memory prune` | Prune old/low-value memory entries |
+| `prev memory export <path>` | Export memory as markdown/json |
+| `prev memory reset --yes` | Reset persistent review memory |
 | `prev version` | Print version info |
 
 ### Branch Review Pipeline
@@ -233,6 +257,78 @@ prev mr review my-group/my-project 42 --strictness strict
 | `--serena` | Serena MCP mode for MR context: `auto`, `on`, `off` |
 | `--context` | Number of surrounding context lines used for MR enrichment |
 | `--max-tokens` | Max token budget used by MR context enrichment |
+| `--memory` | Enable/disable persistent cross-MR reviewer memory |
+| `--memory-file` | Markdown memory file path (default: `.prev/review-memory.md`) |
+| `--memory-max` | Max memory items injected into each review prompt |
+| `--native-impact` | Enable deterministic native impact/risk precheck |
+| `--native-impact-max-symbols` | Max changed symbols used for impact map |
+| `--fix-prompt` | Include AI fix prompt block in inline comments: `off`, `auto`, `always` |
+
+#### Persistent Review Memory
+
+`prev` can keep persistent reviewer memory across MRs in a markdown file:
+
+- Default file: `.prev/review-memory.md`
+- Format: human-readable markdown + a machine-readable JSON fenced block
+- Tracks recurring open findings and fixed findings
+- Injects relevant history into new MR review prompts
+
+This helps reduce repeated comments on already-fixed issues while keeping pressure on recurring unresolved ones.
+
+```bash
+# default behavior (memory on)
+prev mr review my-group/my-project 42
+
+# custom markdown memory path
+prev mr review my-group/my-project 42 --memory-file .prev/team-memory.md
+
+# disable memory for one run
+prev mr review my-group/my-project 42 --memory=false
+```
+
+#### AI Fix Prompt Block
+
+`prev` can include a structured "AI agent fix prompt" inside inline comments when direct patch suggestions are absent.
+
+- `--fix-prompt off` (default): disabled
+- `--fix-prompt auto`: only for high-impact findings without direct patch suggestion
+- `--fix-prompt always`: always include
+
+```bash
+prev mr review my-group/my-project 42 --fix-prompt auto
+```
+
+#### Native Impact/Risk Precheck
+
+`prev` now injects a deterministic precheck block into MR review prompts:
+
+- changed-symbol impact map (repo-wide reference counts and changed-file hits)
+- concurrency/race-risk signals from changed Go hunks (goroutines, lock symmetry, channel flow, shared map mutations)
+
+Flags:
+
+```bash
+prev mr review my-group/my-project 42 --native-impact --native-impact-max-symbols 16
+```
+
+### Memory Commands
+
+```bash
+# Show markdown memory
+prev memory show
+
+# Show machine JSON
+prev memory show --json
+
+# Prune fixed findings older than 45 days and keep max 400 entries
+prev memory prune --fixed-older-than-days 45 --max-entries 400
+
+# Export as JSON
+prev memory export ./artifacts/review-memory.json --format json
+
+# Reset memory (explicit confirmation required)
+prev memory reset --yes
+```
 
 #### MR Thread Commands
 
