@@ -28,6 +28,8 @@ jobs:
           go-version-file: go.mod
 
       - name: Configure prev
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           mkdir -p "$HOME/.config/prev"
           cp ci/prev-config-github.yml "$HOME/.config/prev/config.yml"
