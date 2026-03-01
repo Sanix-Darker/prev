@@ -171,7 +171,7 @@ func (p *Provider) FetchMRRawDiff(projectID string, mrIID int64) (string, error)
 func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDiscussion, error) {
 	type reviewComment struct {
 		ID           int64  `json:"id"`
-		InReplyToID  int64  `json:"in_reply_to_id"`
+		InReplyToID  *int64 `json:"in_reply_to_id"`
 		Body         string `json:"body"`
 		Path         string `json:"path"`
 		Line         int    `json:"line"`
@@ -194,8 +194,8 @@ func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDis
 
 		for _, c := range comments {
 			threadID := c.ID
-			if c.InReplyToID > 0 {
-				threadID = c.InReplyToID
+			if c.InReplyToID != nil && *c.InReplyToID > 0 {
+				threadID = *c.InReplyToID
 			}
 			key := strconv.FormatInt(threadID, 10)
 			if _, ok := threads[key]; !ok {
