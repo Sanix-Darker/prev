@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   build:
     name: Build and Test
@@ -27,3 +31,39 @@ jobs:
       - run: go test ./... -race -count=1
         env:
           PREV_SKIP_DIFF_TESTS: "1"
+
+  review:
+    if: github.event.pull_request.draft == false && contains(github.event.pull_request.labels.*.name, 'review')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Configure prev
+        run: |
+          mkdir -p "$HOME/.config/prev"
+          cp ci/prev-config-github.yml "$HOME/.config/prev/config.yml"
+          go run . config validate
+
+      - name: Skip on missing API key
+        if: ${{ secrets.OPENAI_API_KEY == '' }}
+        run: |
+          echo "OPENAI_API_KEY is not configured. Skipping prev review."
+
+      - name: Review pull request with prev
+        if: ${{ secrets.OPENAI_API_KEY != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          go run . mr review "${{ github.repository }}" "${{ github.event.pull_request.number }}" \
+            --vcs github \
+            --strictness normal \
+            --max-comments 15
