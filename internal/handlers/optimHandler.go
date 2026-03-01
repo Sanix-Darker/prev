@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"fmt"
-	"strings"
+	"os"
 
 	common "github.com/sanix-darker/prev/internal/common"
 	"github.com/sanix-darker/prev/internal/config"
@@ -21,8 +21,8 @@ func ExtractOptimHandler(
 		return core.BuildOptimPrompt(conf, clipValue), err
 	} else {
 		// or we take from the first argument
-		lines, err := core.ReadFileLines(args[0])
-		fileContent := strings.Join(lines, "\n")
+		raw, err := os.ReadFile(args[0])
+		fileContent := string(raw)
 
 		if len(fileContent) < 1 {
 			common.LogError(

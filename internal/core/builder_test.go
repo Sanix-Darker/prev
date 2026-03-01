@@ -1,6 +1,8 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -97,6 +99,32 @@ func TestBuildDiff_SameFile(t *testing.T) {
 func TestBuildDiff_MissingFile(t *testing.T) {
 	_, err := BuildDiff("nonexistent1.py", "../../fixtures/test_diff1.py")
 	assert.Error(t, err)
+}
+
+func TestBuildDiff_EmptyToNonEmpty(t *testing.T) {
+	dir := t.TempDir()
+	oldPath := filepath.Join(dir, "old.txt")
+	newPath := filepath.Join(dir, "new.txt")
+	require.NoError(t, os.WriteFile(oldPath, []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(newPath, []byte("line1\nline2\n"), 0o644))
+
+	diff, err := BuildDiff(oldPath, newPath)
+	require.NoError(t, err)
+	assert.Contains(t, diff, "+ line1")
+	assert.Contains(t, diff, "+ line2")
+}
+
+func TestBuildDiff_NonEmptyToEmpty(t *testing.T) {
+	dir := t.TempDir()
+	oldPath := filepath.Join(dir, "old.txt")
+	newPath := filepath.Join(dir, "new.txt")
+	require.NoError(t, os.WriteFile(oldPath, []byte("line1\nline2\n"), 0o644))
+	require.NoError(t, os.WriteFile(newPath, []byte(""), 0o644))
+
+	diff, err := BuildDiff(oldPath, newPath)
+	require.NoError(t, err)
+	assert.Contains(t, diff, "- line1")
+	assert.Contains(t, diff, "- line2")
 }
 
 func TestBuildMRReviewPrompt(t *testing.T) {

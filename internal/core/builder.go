@@ -2,6 +2,7 @@ package core
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -120,10 +121,6 @@ func ReadFileLines(filename string) ([]string, error) {
 	return lines, nil
 }
 
-func cleanDiffLine(formating string, line string) string {
-	return strings.ReplaceAll(fmt.Sprintf(formating, line), "\n", "")
-}
-
 func BuildDiff(filePath1, filePath2 string) (string, error) {
 
 	// Read the contents of the first file
@@ -138,26 +135,48 @@ func BuildDiff(filePath1, filePath2 string) (string, error) {
 		return "", err
 	}
 
+	// Fast path: identical content has no changes to review.
+	if bytes.Equal(content1, content2) {
+		return "", nil
+	}
+
 	oldLines := splitLines(string(content1))
 	newLines := splitLines(string(content2))
+
+	// Fast paths to avoid LCS matrix allocation for one-sided files.
+	if len(oldLines) == 0 {
+		changes := make([]string, 0, len(newLines))
+		for _, line := range newLines {
+			changes = append(changes, "+ "+line)
+		}
+		return strings.Join(changes, "\n"), nil
+	}
+	if len(newLines) == 0 {
+		changes := make([]string, 0, len(oldLines))
+		for _, line := range oldLines {
+			changes = append(changes, "- "+line)
+		}
+		return strings.Join(changes, "\n"), nil
+	}
+
 	ops := computeLineDiff(oldLines, newLines)
 
 	// Keep only the first two context lines before the first change to avoid
 	// overwhelming the prompt with unchanged content.
-	var changes []string
+	changes := make([]string, 0, len(ops))
 	contextCount := 0
 	sawChange := false
 	for _, op := range ops {
 		switch op.kind {
 		case lineOpAdd:
 			sawChange = true
-			changes = append(changes, cleanDiffLine("+ %s", op.line))
+			changes = append(changes, "+ "+op.line)
 		case lineOpDel:
 			sawChange = true
-			changes = append(changes, cleanDiffLine("- %s", op.line))
+			changes = append(changes, "- "+op.line)
 		case lineOpEqual:
 			if !sawChange && contextCount < 2 {
-				changes = append(changes, cleanDiffLine("%s", op.line))
+				changes = append(changes, op.line)
 				contextCount++
 			}
 		}
