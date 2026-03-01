@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	common "github.com/sanix-darker/prev/internal/common"
@@ -26,6 +28,10 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 				args[0],
 				cmd.Help,
 			)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
 
 			configGuidelines := ""
 			if conf.Viper != nil {

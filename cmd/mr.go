@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/core"
@@ -141,6 +142,31 @@ func newMRReviewCmd() *cobra.Command {
 				"diff_context",
 			)
 			filterMode = normalizeInlineFilterMode(filterMode)
+			memoryEnabled := true
+			if f := cmd.Flags().Lookup("memory"); f != nil && f.Changed {
+				memoryEnabled, _ = cmd.Flags().GetBool("memory")
+			}
+			memoryFile, _ := cmd.Flags().GetString("memory-file")
+			memoryMax := 12
+			if f := cmd.Flags().Lookup("memory-max"); f != nil && f.Changed {
+				memoryMax, _ = cmd.Flags().GetInt("memory-max")
+			}
+			if memoryMax <= 0 {
+				memoryMax = 12
+			}
+			nativeImpact := true
+			if f := cmd.Flags().Lookup("native-impact"); f != nil && f.Changed {
+				nativeImpact, _ = cmd.Flags().GetBool("native-impact")
+			}
+			nativeImpactMaxSymbols := 12
+			if f := cmd.Flags().Lookup("native-impact-max-symbols"); f != nil && f.Changed {
+				nativeImpactMaxSymbols, _ = cmd.Flags().GetInt("native-impact-max-symbols")
+			}
+			fixPromptMode := "off"
+			if f := cmd.Flags().Lookup("fix-prompt"); f != nil && f.Changed {
+				fixPromptMode, _ = cmd.Flags().GetString("fix-prompt")
+			}
+			fixPromptMode = normalizeFixPromptMode(fixPromptMode)
 			structuredOutput := false
 			if conf.Viper != nil {
 				structuredOutput = conf.Viper.GetBool("review.structured_output")
@@ -238,6 +264,25 @@ func newMRReviewCmd() *cobra.Command {
 			if len(carryOver) > 0 {
 				reviewGuidelines = appendCarryOverGuidelines(reviewGuidelines, carryOver)
 			}
+			memoryPath := ""
+			var mem reviewMemory
+			if memoryEnabled {
+				memLoaded, path, merr := loadReviewMemory(repoPath, memoryFile)
+				if merr != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to load review memory: %v\n", merr)
+				} else {
+					mem = memLoaded
+					memoryPath = path
+					reviewGuidelines = appendReviewMemoryGuidelines(reviewGuidelines, mem, review.Changes, memoryMax)
+				}
+			}
+			reviewGuidelines = appendNativeImpactGuidelines(
+				reviewGuidelines,
+				review.Changes,
+				repoPath,
+				nativeImpact,
+				nativeImpactMaxSymbols,
+			)
 
 			serenaMode := resolveMRStringSetting(
 				cmd, "serena", conf,
@@ -351,6 +396,26 @@ func newMRReviewCmd() *cobra.Command {
 			parsed.FileComments = append(parsed.FileComments, detectDeterministicFindings(review.Changes)...)
 			parsed.FileComments = filterOutMetaContextFindings(parsed.FileComments)
 			parsed.FileComments = filterLowSignalInlineFindings(parsed.FileComments, validPositionsByFile)
+			if memoryEnabled && strings.TrimSpace(memoryPath) != "" {
+				now := time.Now().UTC()
+				mrRef := fmt.Sprintf("%s!%d", projectID, mrIID)
+				updated := false
+				if updateReviewMemoryFromDiscussions(&mem, discussions, mrRef, now) {
+					updated = true
+				}
+				if updateReviewMemoryFromFindings(&mem, parsed.FileComments, mrRef, now) {
+					updated = true
+				}
+				if updated {
+					trimReviewMemory(&mem, 500)
+					if err := saveReviewMemory(memoryPath, mem); err != nil {
+						fmt.Fprintf(os.Stderr, "Warning: failed to persist review memory: %v\n", err)
+					} else {
+						openCount, fixedCount := reviewMemoryCounts(mem)
+						fmt.Printf("Review memory updated: %s (open=%d fixed=%d)\n", memoryPath, openCount, fixedCount)
+					}
+				}
+			}
 			if !inlineOnly && threadHasAnyCommand(discussions, mentionHandle, "summary") {
 				if hasTopLevelMarker(notes, prevSummaryMarker) {
 					fmt.Println("\nSummary already posted; skipping duplicate summary note.")
@@ -425,6 +490,9 @@ func newMRReviewCmd() *cobra.Command {
 				skippedRunDup := 0
 				for _, grp := range inlineGroups {
 					body := buildInlineCommentBody(grp.Severity, grp.Message, grp.Suggestion, vcsProvider.FormatSuggestionBlock)
+					if fp := buildAgentFixPrompt(grp, fixPromptMode); fp != "" {
+						body += "\n\nAI agent fix prompt:\n```text\n" + fp + "\n```"
+					}
 					body += "\n\n" + prevThreadMarker
 					key := inlineKey(grp.FilePath, grp.NewLine, body)
 					sevKey := inlineSeverityKey(grp.FilePath, grp.NewLine, grp.Severity)
@@ -522,6 +590,12 @@ func newMRReviewCmd() *cobra.Command {
 	cmd.Flags().Bool("inline-only", false, "Post inline comments only (disable summary notes, thread replies, and unplaced summary notes)")
 	cmd.Flags().Bool("incremental", false, "Review only file-level deltas since the last baseline marker")
 	cmd.Flags().String("filter-mode", "diff_context", "Inline filtering mode: added, diff_context, file, nofilter")
+	cmd.Flags().Bool("memory", true, "Enable persistent cross-MR reviewer memory")
+	cmd.Flags().String("memory-file", defaultReviewMemoryFile, "Path to persistent review memory markdown file")
+	cmd.Flags().Int("memory-max", 12, "Maximum historical memory items injected into the review prompt")
+	cmd.Flags().Bool("native-impact", true, "Enable native deterministic impact/risk precheck before AI review")
+	cmd.Flags().Int("native-impact-max-symbols", 12, "Maximum changed symbols used for native impact mapping")
+	cmd.Flags().String("fix-prompt", "off", "Include AI fix prompt block in inline comments: off, auto, always")
 	cmd.Flags().Bool("structured-output", false, "Request and parse structured JSON findings with markdown fallback")
 	cmd.Flags().String("mr-diff-source", "auto", "MR diff source strategy: auto, git, raw, api")
 	cmd.Flags().String("serena", "auto", "Serena mode: auto, on, off")
@@ -1645,6 +1719,59 @@ func normalizeSuggestion(s string) string {
 		return ""
 	}
 	return strings.Join(lines[start:end], "\n")
+}
+
+func normalizeFixPromptMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "auto", "always":
+		return strings.ToLower(strings.TrimSpace(mode))
+	default:
+		return "off"
+	}
+}
+
+func shouldIncludeAgentFixPrompt(grp inlineGroup, mode string) bool {
+	mode = normalizeFixPromptMode(mode)
+	if mode == "off" {
+		return false
+	}
+	if strings.TrimSpace(grp.FilePath) == "" || grp.NewLine <= 0 {
+		return false
+	}
+	if strings.TrimSpace(grp.Message) == "" {
+		return false
+	}
+	if mode == "always" {
+		return true
+	}
+	// auto mode: include only when no concrete patch is available and issue is high impact.
+	if strings.TrimSpace(grp.Suggestion) != "" {
+		return false
+	}
+	return severityRank(grp.Severity) >= severityRank("HIGH")
+}
+
+func buildAgentFixPrompt(grp inlineGroup, mode string) string {
+	if !shouldIncludeAgentFixPrompt(grp, mode) {
+		return ""
+	}
+	return fmt.Sprintf(
+		"You are fixing a code-review finding.\n"+
+			"Target file: %s\n"+
+			"Target line: %d\n"+
+			"Severity: %s\n"+
+			"Finding: %s\n\n"+
+			"Task:\n"+
+			"1) Produce a minimal patch that fixes the issue without changing unrelated behavior.\n"+
+			"2) Preserve API/ABI compatibility unless a breaking change is explicitly required.\n"+
+			"3) Add or update tests to prevent regression.\n"+
+			"4) Explain any concurrency/race-condition implications if shared state is touched.\n"+
+			"5) Return: (a) unified diff, (b) test diff, (c) short risk note.",
+		strings.TrimSpace(grp.FilePath),
+		grp.NewLine,
+		strings.ToUpper(strings.TrimSpace(grp.Severity)),
+		strings.TrimSpace(conciseInlineBody(grp.Message)),
+	)
 }
 
 func isNonActionableInlinePoint(point string) bool {

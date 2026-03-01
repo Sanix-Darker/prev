@@ -62,6 +62,31 @@ This document is the source-of-truth for `prev` runtime configuration as impleme
 | `max_characters_per_key_point` | int | `100` | none | none | output shaping |
 | `explain` | bool | `false` | none | none | output shaping |
 
+### MR Review Memory (CLI Parameters)
+
+These are CLI-only parameters for `prev mr review` (not persisted in config keys yet):
+
+| Parameter | Type | Default | Purpose |
+|---|---|---|---|
+| `--memory` | bool | `true` | Enable persistent cross-MR memory |
+| `--memory-file` | string | `.prev/review-memory.md` | Markdown memory file location |
+| `--memory-max` | int | `12` | Max historical items injected into prompt |
+| `--native-impact` | bool | `true` | Enable deterministic native impact/risk precheck |
+| `--native-impact-max-symbols` | int | `12` | Max changed symbols included in impact map |
+| `--fix-prompt` | string | `off` | Inline AI fix prompt mode: `off`, `auto`, `always` |
+
+Memory file format is markdown with a fenced machine block:
+
+- Human-readable sections (snapshot, open/fixed tables)
+- ` ```prev-memory-json ` fenced JSON payload used by the CLI
+
+Memory management commands:
+
+- `prev memory show [--json]`
+- `prev memory prune [--max-entries N] [--fixed-older-than-days N] [--dry-run]`
+- `prev memory export <path> [--format markdown|json]`
+- `prev memory reset --yes`
+
 ## Provider Env Vars
 
 ### OpenAI

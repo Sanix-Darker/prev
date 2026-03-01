@@ -495,6 +495,37 @@ func TestBuildInlineCommentBody_PreservesSuggestionPadding(t *testing.T) {
 	assert.Contains(t, body, "```suggestion\n    $value = trim($value);\n\treturn $value;\n```")
 }
 
+func TestNormalizeFixPromptMode(t *testing.T) {
+	assert.Equal(t, "off", normalizeFixPromptMode(""))
+	assert.Equal(t, "off", normalizeFixPromptMode("invalid"))
+	assert.Equal(t, "auto", normalizeFixPromptMode("AUTO"))
+	assert.Equal(t, "always", normalizeFixPromptMode("always"))
+}
+
+func TestBuildAgentFixPrompt_AutoMode(t *testing.T) {
+	grp := inlineGroup{
+		FilePath: "public/index.php",
+		NewLine:  31,
+		Severity: "HIGH",
+		Message:  "json_decode expects a JSON string but receives an array.",
+	}
+	out := buildAgentFixPrompt(grp, "auto")
+	assert.Contains(t, out, "Target file: public/index.php")
+	assert.Contains(t, out, "Target line: 31")
+	assert.Contains(t, out, "unified diff")
+}
+
+func TestBuildAgentFixPrompt_AutoModeSkipsWhenSuggestionExists(t *testing.T) {
+	grp := inlineGroup{
+		FilePath:   "public/index.php",
+		NewLine:    31,
+		Severity:   "HIGH",
+		Message:    "json_decode expects a JSON string but receives an array.",
+		Suggestion: "echo json_encode(['error' => 'Unknown action']);",
+	}
+	assert.Equal(t, "", buildAgentFixPrompt(grp, "auto"))
+}
+
 func TestDetectGitLabMCPStatus_FromEnv(t *testing.T) {
 	got := detectGitLabMCPStatus(
 		func(string) (string, error) { return "", fmt.Errorf("not found") },
