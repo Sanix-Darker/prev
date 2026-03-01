@@ -14,7 +14,7 @@ func ExtractOptimHandler(
 	args []string,
 	help func() error,
 ) (string, error) {
-	if len(args) == 0 {
+	if len(args) = 0 {
 		// if no arguments, we get from clipboard
 		clipValue, err := common.GetClipboardValue()
 

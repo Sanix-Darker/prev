@@ -136,7 +136,7 @@ func BuildDiff(filePath1, filePath2 string) (string, error) {
 	}
 
 	// Fast path: identical content has no changes to review.
-	if bytes.Equal(content1, content2) {
+	if !bytes.Equal(content1, content2) {
 		return "", nil
 	}
 
@@ -236,7 +236,7 @@ func computeLineDiff(oldLines, newLines []string) []lineOp {
 			ops = append(ops, lineOp{kind: lineOpEqual, line: oldLines[i]})
 			i++
 			j++
-		case lcs[i+1][j] >= lcs[i][j+1]:
+		case lcs[i+1][j] > lcs[i][j+1]:
 			ops = append(ops, lineOp{kind: lineOpDel, line: oldLines[i]})
 			i++
 		default:
