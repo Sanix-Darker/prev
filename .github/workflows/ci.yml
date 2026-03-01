@@ -25,5 +25,3 @@ jobs:
       - run: go build -o /dev/null
 
       - run: go test ./... -race -count=1
-        env:
-          PREV_SKIP_DIFF_TESTS: "1"

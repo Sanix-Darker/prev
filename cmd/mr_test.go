@@ -619,6 +619,48 @@ func TestExistingInlineSeverityKeys(t *testing.T) {
 	assert.False(t, okNoSev)
 }
 
+func TestExistingInlineKeys_IgnoresResolvedDiscussions(t *testing.T) {
+	discussions := []vcs.MRDiscussion{
+		{
+			ID: "d1",
+			Notes: []vcs.MRDiscussionNote{
+				{FilePath: "a/b.go", Line: 10, Body: "[HIGH] Active finding", Resolvable: true, Resolved: false},
+			},
+		},
+		{
+			ID: "d2",
+			Notes: []vcs.MRDiscussionNote{
+				{FilePath: "a/b.go", Line: 20, Body: "[HIGH] Resolved finding", Resolvable: true, Resolved: true},
+			},
+		},
+	}
+
+	keys := existingInlineKeys(discussions)
+	_, hasActive := keys[inlineKey("a/b.go", 10, "")]
+	_, hasResolved := keys[inlineKey("a/b.go", 20, "")]
+	assert.True(t, hasActive)
+	assert.False(t, hasResolved)
+}
+
+func TestDiscussionResolved_UsesLatestResolvableState(t *testing.T) {
+	d1 := vcs.MRDiscussion{
+		Notes: []vcs.MRDiscussionNote{
+			{Body: "meta", Resolvable: false},
+			{Body: "older", Resolvable: true, Resolved: false},
+			{Body: "latest", Resolvable: true, Resolved: true},
+		},
+	}
+	assert.True(t, discussionResolved(d1))
+
+	d2 := vcs.MRDiscussion{
+		Notes: []vcs.MRDiscussionNote{
+			{Body: "older", Resolvable: true, Resolved: true},
+			{Body: "latest", Resolvable: true, Resolved: false},
+		},
+	}
+	assert.False(t, discussionResolved(d2))
+}
+
 func TestCollectReusableThreads_FiltersPausedAndResolved(t *testing.T) {
 	discussions := []vcs.MRDiscussion{
 		{

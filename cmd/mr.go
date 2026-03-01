@@ -935,6 +935,9 @@ func collectCarryOverFindings(
 	seen := map[string]struct{}{}
 	var out []carryOverFinding
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		if pausedThreads[d.ID] {
 			continue
 		}
@@ -1008,6 +1011,9 @@ func postCarryOverReminders(
 	}
 	hasReminder := map[string]struct{}{}
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		for _, n := range d.Notes {
 			if strings.Contains(strings.ToLower(n.Body), strings.ToLower(prevCarryOverMarker)) {
 				hasReminder[d.ID] = struct{}{}
@@ -1050,6 +1056,9 @@ func processReplyCommands(
 ) int {
 	posted := 0
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		if pausedThreads[d.ID] {
 			continue
 		}
@@ -1462,6 +1471,9 @@ func severityRank(sev string) int {
 func existingInlineKeys(discussions []vcs.MRDiscussion) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		for _, n := range d.Notes {
 			if n.FilePath == "" || n.Line <= 0 {
 				continue
@@ -1475,6 +1487,9 @@ func existingInlineKeys(discussions []vcs.MRDiscussion) map[string]struct{} {
 func existingInlineSeverityKeys(discussions []vcs.MRDiscussion) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		for _, n := range d.Notes {
 			if n.FilePath == "" || n.Line <= 0 {
 				continue
@@ -1494,6 +1509,9 @@ func collectReusableThreads(
 ) []reusableThread {
 	var out []reusableThread
 	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
 		if pausedThreads[d.ID] {
 			continue
 		}
@@ -1524,6 +1542,17 @@ func collectReusableThreads(
 		}
 	}
 	return out
+}
+
+func discussionResolved(d vcs.MRDiscussion) bool {
+	for i := len(d.Notes) - 1; i >= 0; i-- {
+		n := d.Notes[i]
+		if !n.Resolvable {
+			continue
+		}
+		return n.Resolved
+	}
+	return false
 }
 
 func matchReusableThread(candidates []reusableThread, grp inlineGroup) (reusableThread, bool) {

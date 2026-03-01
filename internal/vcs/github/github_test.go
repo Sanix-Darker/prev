@@ -20,13 +20,13 @@ func TestProvider_FetchMRAndDiffs(t *testing.T) {
 		switch r.URL.Path {
 		case "/repos/acme/blog/pulls/42":
 			resp := map[string]interface{}{
-				"number": 42,
-				"title":  "Add recipe endpoints",
-				"body":   "Adds API endpoints for posts.",
-				"user":   map[string]interface{}{"login": "octo"},
-				"head":   map[string]interface{}{"ref": "feature", "sha": "headsha"},
-				"base":   map[string]interface{}{"ref": "main", "sha": "basesha"},
-				"state":  "open",
+				"number":   42,
+				"title":    "Add recipe endpoints",
+				"body":     "Adds API endpoints for posts.",
+				"user":     map[string]interface{}{"login": "octo"},
+				"head":     map[string]interface{}{"ref": "feature", "sha": "headsha"},
+				"base":     map[string]interface{}{"ref": "main", "sha": "basesha"},
+				"state":    "open",
 				"html_url": "https://example.com/pr/42",
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -115,4 +115,66 @@ func TestProvider_PostComments(t *testing.T) {
 func TestHasNextPage(t *testing.T) {
 	assert.True(t, hasNextPage(`<https://api.github.com/resource?page=2>; rel="next"`))
 	assert.False(t, hasNextPage(`<https://api.github.com/resource?page=2>; rel="prev"`))
+}
+
+func TestProvider_ListMRDiscussions_GroupsReviewThreads(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/acme/blog/pulls/42/comments" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		resp := []map[string]interface{}{
+			{
+				"id":             101,
+				"body":           "[HIGH] First finding",
+				"path":           "public/index.php",
+				"line":           31,
+				"in_reply_to_id": nil,
+				"user":           map[string]interface{}{"login": "bot"},
+			},
+			{
+				"id":             102,
+				"body":           "Follow-up",
+				"path":           "public/index.php",
+				"line":           31,
+				"in_reply_to_id": 101,
+				"user":           map[string]interface{}{"login": "dev"},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	p, err := NewProvider("token-123", server.URL)
+	require.NoError(t, err)
+
+	discussions, err := p.ListMRDiscussions("acme/blog", 42)
+	require.NoError(t, err)
+	require.Len(t, discussions, 1)
+	assert.Equal(t, "101", discussions[0].ID)
+	require.Len(t, discussions[0].Notes, 2)
+	assert.Equal(t, "public/index.php", discussions[0].Notes[0].FilePath)
+	assert.Equal(t, 31, discussions[0].Notes[0].Line)
+}
+
+func TestProvider_ReplyToMRDiscussion(t *testing.T) {
+	var payload map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/acme/blog/pulls/42/comments" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		defer r.Body.Close()
+		_ = json.Unmarshal(body, &payload)
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	p, err := NewProvider("token-123", server.URL)
+	require.NoError(t, err)
+
+	err = p.ReplyToMRDiscussion("acme/blog", 42, "101", "reply body")
+	require.NoError(t, err)
+	assert.Equal(t, "reply body", payload["body"])
+	assert.Equal(t, float64(101), payload["in_reply_to"])
 }

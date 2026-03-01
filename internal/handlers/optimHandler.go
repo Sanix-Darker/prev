@@ -23,9 +23,6 @@ func ExtractOptimHandler(
 		// or we take from the first argument
 		raw, err := os.ReadFile(args[0])
 		fileContent := string(raw)
-		if len(raw) > 0 {
-			fileContent = string(raw[:len(raw)-1])
-		}
 
 		if len(fileContent) < 1 {
 			common.LogError(

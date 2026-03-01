@@ -31,11 +31,7 @@ func NewOptimizeCmd(conf config.Config) *cobra.Command {
 				common.LogInfo(prompt, nil)
 			}
 
-			if conf.Debug {
-				callProvider(conf, prompt)
-			} else {
-				callProvider(conf, "")
-			}
+			callProvider(conf, prompt)
 		},
 	}
 

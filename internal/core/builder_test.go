@@ -20,13 +20,6 @@ func testConfig(explain bool) config.Config {
 	}
 }
 
-func skipDiffBehaviorTests(t *testing.T) {
-	t.Helper()
-	if os.Getenv("PREV_SKIP_DIFF_TESTS") == "1" {
-		t.Skip("skipped due to PREV_SKIP_DIFF_TESTS=1")
-	}
-}
-
 func TestBuildReviewPrompt_WithExplanation(t *testing.T) {
 	conf := testConfig(true)
 	prompt := BuildReviewPrompt(conf, "+added line\n-removed line", "")
@@ -79,7 +72,6 @@ func TestReadFileLines_MissingFile(t *testing.T) {
 }
 
 func TestBuildDiff(t *testing.T) {
-	skipDiffBehaviorTests(t)
 	diff, err := BuildDiff("../../fixtures/test_diff1.py", "../../fixtures/test_diff2.py")
 	require.NoError(t, err)
 	assert.NotEmpty(t, diff)
@@ -88,7 +80,6 @@ func TestBuildDiff(t *testing.T) {
 }
 
 func TestBuildDiff_LineGranularity(t *testing.T) {
-	skipDiffBehaviorTests(t)
 	diff, err := BuildDiff("../../fixtures/test_diff1.py", "../../fixtures/test_diff2.py")
 	require.NoError(t, err)
 
@@ -111,7 +102,6 @@ func TestBuildDiff_MissingFile(t *testing.T) {
 }
 
 func TestBuildDiff_EmptyToNonEmpty(t *testing.T) {
-	skipDiffBehaviorTests(t)
 	dir := t.TempDir()
 	oldPath := filepath.Join(dir, "old.txt")
 	newPath := filepath.Join(dir, "new.txt")
@@ -125,7 +115,6 @@ func TestBuildDiff_EmptyToNonEmpty(t *testing.T) {
 }
 
 func TestBuildDiff_NonEmptyToEmpty(t *testing.T) {
-	skipDiffBehaviorTests(t)
 	dir := t.TempDir()
 	oldPath := filepath.Join(dir, "old.txt")
 	newPath := filepath.Join(dir, "new.txt")
