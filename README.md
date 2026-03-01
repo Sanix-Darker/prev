@@ -15,15 +15,22 @@ Supports multiple AI providers: **OpenAI**, **Anthropic (Claude)**, **Azure Open
 | AI providers (OpenAI, Claude, Gemini, Ollama, Groq...) | 9 | 3-4 | Proprietary | 1 | 1-2 |
 | Offline/local LLM support (Ollama, LM Studio) | Yes | Limited | No | No | Rare |
 | Persistent cross-MR review memory | Yes | No | No | No | No |
+| Markdown-backed memory portability (repo-storable, human-readable) | Yes | No | No | No | Rare |
 | Symbol impact mapping (function reference tracking) | Yes | No | No | No | No |
 | Concurrency/race-risk detection (Go) | Yes | No | No | No | No |
+| Native deterministic precheck before AI (impact + risk hints) | Yes | No | No | No | No |
 | Serena MCP integration (symbol-level context) | Yes | No | No | No | No |
 | Thread continuity (reuse threads across pushes) | Yes | Partial | Yes | No | No |
+| Duplicate-thread suppression on subsequent pushes | Yes | Partial | Partial | No | Rare |
+| Resolved-thread awareness (ignore resolved discussions) | Yes | Partial | Partial | No | Rare |
+| Fixed thread commands via MR comments (`@prev ...`) | Yes | No | No | No | No |
 | Auto-discover repo guidelines (CLAUDE.md, AGENTS.md, copilot-instructions) | Yes | No | Partial | No | No |
 | Strictness levels (strict/normal/lenient) | Yes | Partial | Yes | No | Rare |
 | AI fix prompt blocks in inline comments | Yes | Yes | Yes | No | No |
 | Hunk consolidation (merge findings per hunk) | Yes | No | Partial | No | No |
 | Token-aware batching | Yes | Yes | Yes | No | Rare |
+| Incremental MR reviews using baseline markers | Yes | No | Partial | No | Rare |
+| Unified GitLab + GitHub support in one CLI workflow | Yes | Partial | Yes | No | Rare |
 | Config hierarchy (CLI > env > file > defaults) | Yes | Partial | SaaS | Minimal | Varies |
 | CLI-native (no SaaS dependency) | Yes | Yes | No | GitHub Action | Varies |
 
@@ -217,6 +224,7 @@ GitHub Actions example:
 Review GitLab merge requests or GitHub pull requests directly from your terminal.
 
 VCS provider is auto-detected: if `GITLAB_TOKEN` is set, GitLab is used; if `GITHUB_TOKEN` is set, GitHub is used. Override with `--vcs`.
+If both tokens are set, `gitlab` is selected unless you pass `--vcs github`.
 
 ```bash
 # GitLab
@@ -252,8 +260,12 @@ prev mr review my-group/my-project 42 --strictness strict
 | `--gitlab-token` | GitLab token (or use `GITLAB_TOKEN` env) |
 | `--gitlab-url` | GitLab instance URL (or use `GITLAB_URL` env) |
 | `--strictness` | Review strictness: `strict`, `normal`, `lenient` |
+| `--nitpick` | Sensitivity `0..10` for lower-severity suggestions (combined with strictness) |
 | `--max-comments` | Max inline comments to post (0 = unlimited; prioritizes highest severity) |
 | `--review-passes` | Number of AI review passes (0 = config/default `1`) |
+| `--inline-only` | Post inline comments only (skip summary notes and thread replies) |
+| `--incremental` | Review only file-level deltas since the last baseline marker |
+| `--filter-mode` | Inline filtering mode: `added`, `diff_context`, `file`, `nofilter` |
 | `--serena` | Serena MCP mode for MR context: `auto`, `on`, `off` |
 | `--context` | Number of surrounding context lines used for MR enrichment |
 | `--max-tokens` | Max token budget used by MR context enrichment |
@@ -263,6 +275,8 @@ prev mr review my-group/my-project 42 --strictness strict
 | `--native-impact` | Enable deterministic native impact/risk precheck |
 | `--native-impact-max-symbols` | Max changed symbols used for impact map |
 | `--fix-prompt` | Include AI fix prompt block in inline comments: `off`, `auto`, `always` |
+| `--structured-output` | Request/parse JSON findings with markdown fallback |
+| `--mr-diff-source` | MR diff source strategy: `auto`, `git`, `raw`, `api` |
 
 #### Persistent Review Memory
 
