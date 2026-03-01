@@ -495,6 +495,34 @@ func TestBuildInlineCommentBody_PreservesSuggestionPadding(t *testing.T) {
 	assert.Contains(t, body, "```suggestion\n    $value = trim($value);\n\treturn $value;\n```")
 }
 
+func TestRebaseSuggestionIndentation_RebasesToAnchor(t *testing.T) {
+	anchor := "        $title = trim($payload['title'] ?? '');"
+	suggestion := "  if ($title === '') {\n      $title = 'Untitled';\n  }"
+
+	got := rebaseSuggestionIndentation(suggestion, anchor)
+	assert.Equal(t,
+		"        if ($title === '') {\n            $title = 'Untitled';\n        }",
+		got,
+	)
+}
+
+func TestRebaseSuggestionIndentation_PreservesRelativePadding(t *testing.T) {
+	anchor := "\t\tvalue := data[idx]"
+	suggestion := "    if value == nil {\n        return errors.New(\"bad\")\n    }"
+
+	got := rebaseSuggestionIndentation(suggestion, anchor)
+	assert.Equal(t,
+		"\t\tif value == nil {\n\t\t    return errors.New(\"bad\")\n\t\t}",
+		got,
+	)
+}
+
+func TestRebaseSuggestionIndentation_NoAnchorIndent(t *testing.T) {
+	suggestion := "    x := 1\n    y := 2"
+	got := rebaseSuggestionIndentation(suggestion, "func main() {")
+	assert.Equal(t, suggestion, got)
+}
+
 func TestNormalizeFixPromptMode(t *testing.T) {
 	assert.Equal(t, "off", normalizeFixPromptMode(""))
 	assert.Equal(t, "off", normalizeFixPromptMode("invalid"))
@@ -526,8 +554,9 @@ func TestBuildAgentFixPrompt_AutoModeSkipsWhenSuggestionExists(t *testing.T) {
 	assert.Equal(t, "", buildAgentFixPrompt(grp, "auto"))
 }
 
-func TestDetectGitLabMCPStatus_FromEnv(t *testing.T) {
-	got := detectGitLabMCPStatus(
+func TestDetectVCSContextStatus_FromEnv(t *testing.T) {
+	got := detectVCSContextStatus(
+		"gitlab",
 		func(string) (string, error) { return "", fmt.Errorf("not found") },
 		func(k string) string {
 			if k == "GITLAB_MCP_URL" {
@@ -539,8 +568,9 @@ func TestDetectGitLabMCPStatus_FromEnv(t *testing.T) {
 	assert.Contains(t, got, "configured via GITLAB_MCP_URL")
 }
 
-func TestDetectGitLabMCPStatus_FromBinary(t *testing.T) {
-	got := detectGitLabMCPStatus(
+func TestDetectVCSContextStatus_FromBinary(t *testing.T) {
+	got := detectVCSContextStatus(
+		"gitlab",
 		func(bin string) (string, error) {
 			if bin == "gitlab-mcp" {
 				return "/usr/local/bin/gitlab-mcp", nil
@@ -552,12 +582,22 @@ func TestDetectGitLabMCPStatus_FromBinary(t *testing.T) {
 	assert.Contains(t, got, "detected local server binary")
 }
 
-func TestDetectGitLabMCPStatus_Fallback(t *testing.T) {
-	got := detectGitLabMCPStatus(
+func TestDetectVCSContextStatus_Fallback(t *testing.T) {
+	got := detectVCSContextStatus(
+		"gitlab",
 		func(string) (string, error) { return "", fmt.Errorf("not found") },
 		func(string) string { return "" },
 	)
 	assert.Contains(t, got, "not detected/configured")
+}
+
+func TestDetectVCSContextStatus_GitHub(t *testing.T) {
+	got := detectVCSContextStatus(
+		"github",
+		func(string) (string, error) { return "", fmt.Errorf("not found") },
+		func(string) string { return "" },
+	)
+	assert.Contains(t, got, "GitHub context")
 }
 
 func TestHasTopLevelMarker(t *testing.T) {

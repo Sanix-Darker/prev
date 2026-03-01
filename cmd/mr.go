@@ -220,7 +220,7 @@ func newMRReviewCmd() *cobra.Command {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Println(detectGitLabMCPStatus(exec.LookPath, os.Getenv))
+			fmt.Println(detectVCSContextStatus(vcsProvider.Info().Name, exec.LookPath, os.Getenv))
 			mentionHandle := resolveMentionHandle(conf)
 
 			discussions, err := vcsProvider.ListMRDiscussions(projectID, mrIID)
@@ -489,7 +489,9 @@ func newMRReviewCmd() *cobra.Command {
 				skippedExisting := 0
 				skippedRunDup := 0
 				for _, grp := range inlineGroups {
-					body := buildInlineCommentBody(grp.Severity, grp.Message, grp.Suggestion, vcsProvider.FormatSuggestionBlock)
+					anchorContent := validPositionsByFile[grp.FilePath].content[grp.NewLine]
+					alignedSuggestion := rebaseSuggestionIndentation(grp.Suggestion, anchorContent)
+					body := buildInlineCommentBody(grp.Severity, grp.Message, alignedSuggestion, vcsProvider.FormatSuggestionBlock)
 					if fp := buildAgentFixPrompt(grp, fixPromptMode); fp != "" {
 						body += "\n\nAI agent fix prompt:\n```text\n" + fp + "\n```"
 					}
@@ -1721,6 +1723,64 @@ func normalizeSuggestion(s string) string {
 	return strings.Join(lines[start:end], "\n")
 }
 
+func rebaseSuggestionIndentation(suggestion string, anchorLine string) string {
+	suggestion = normalizeSuggestion(suggestion)
+	if suggestion == "" {
+		return ""
+	}
+	anchorIndent := leadingIndent(anchorLine)
+	if anchorIndent == "" {
+		return suggestion
+	}
+	lines := strings.Split(strings.ReplaceAll(suggestion, "\r\n", "\n"), "\n")
+	nonEmpty := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			nonEmpty = append(nonEmpty, line)
+		}
+	}
+	if len(nonEmpty) == 0 {
+		return suggestion
+	}
+	commonIndent := leadingIndent(nonEmpty[0])
+	for i := 1; i < len(nonEmpty); i++ {
+		commonIndent = commonPrefix(commonIndent, leadingIndent(nonEmpty[i]))
+		if commonIndent == "" {
+			break
+		}
+	}
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		lines[i] = anchorIndent + strings.TrimPrefix(line, commonIndent)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func leadingIndent(s string) string {
+	i := 0
+	for i < len(s) {
+		if s[i] != ' ' && s[i] != '\t' {
+			break
+		}
+		i++
+	}
+	return s[:i]
+}
+
+func commonPrefix(a, b string) string {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	i := 0
+	for i < n && a[i] == b[i] {
+		i++
+	}
+	return a[:i]
+}
+
 func normalizeFixPromptMode(mode string) string {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "auto", "always":
@@ -2842,10 +2902,14 @@ Prior full review output:
 	return out, nil
 }
 
-func detectGitLabMCPStatus(
+func detectVCSContextStatus(
+	vcsName string,
 	lookPath func(string) (string, error),
 	getenv func(string) string,
 ) string {
+	if strings.EqualFold(strings.TrimSpace(vcsName), "github") {
+		return "GitHub context: using standard GitHub API + Serena/local context enrichment."
+	}
 	if url := strings.TrimSpace(getenv("GITLAB_MCP_URL")); url != "" {
 		return fmt.Sprintf("GitLab MCP: configured via GITLAB_MCP_URL (%s).", url)
 	}
