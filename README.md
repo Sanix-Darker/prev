@@ -332,13 +332,13 @@ prev memory reset --yes
 
 #### MR Thread Commands
 
-When `review.mention_handle` (or `PREV_MENTION_HANDLE`) is set, MR comments can control bot behavior:
+MR comments can control bot behavior using the fixed handle `@prev`:
 
-- `@<handle> pause`: pause reviews for the MR/thread
-- `@<handle> resume`: resume paused MR/thread reviews
-- `@<handle> review`: force review processing for that thread
-- `@<handle> summary`: post one top-level summary note (idempotent)
-- `@<handle> reply` or `@<handle> ... ?`: bot posts a thread reply
+- `@prev pause`: pause reviews for the MR/thread
+- `@prev resume`: resume paused MR/thread reviews
+- `@prev review`: force review processing for that thread
+- `@prev summary`: post one top-level summary note (idempotent)
+- `@prev reply`: bot posts a thread reply
 
 Inline continuity behavior:
 
@@ -536,9 +536,7 @@ review:
   # serena_mode: "auto"
   # context_lines: 10
   # max_tokens: 80000
-  # Optional @mention handle used by MR thread commands, e.g. "@my-bot review".
-  # When empty, mention-driven actions are disabled.
-  mention_handle: ""
+  # Thread commands use a fixed handle: @prev
   conventions:
     labels: ["issue", "suggestion", "remark"]
   # Optional custom instructions injected into review prompts.

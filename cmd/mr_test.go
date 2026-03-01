@@ -16,31 +16,25 @@ import (
 )
 
 func TestResolveMentionHandle_FromConfig(t *testing.T) {
-	v := config.NewStore()
-	v.Set("review.mention_handle", "@ange.saadjio")
-	conf := config.Config{Viper: v}
-
-	assert.Equal(t, "ange.saadjio", resolveMentionHandle(conf))
-}
-
-func TestResolveMentionHandle_EnvOverridesConfig(t *testing.T) {
-	t.Setenv("PREV_MENTION_HANDLE", "@bot-user")
-	v := config.NewStore()
-	v.Set("review.mention_handle", "@ange.saadjio")
-	conf := config.Config{Viper: v}
-
-	assert.Equal(t, "bot-user", resolveMentionHandle(conf))
-}
-
-func TestResolveMentionHandle_EmptyWhenUnset(t *testing.T) {
 	conf := config.Config{Viper: config.NewStore()}
-	assert.Equal(t, "", resolveMentionHandle(conf))
+	assert.Equal(t, "prev", resolveMentionHandle(conf))
+}
+
+func TestResolveMentionHandle_EnvDoesNotOverrideFixedHandle(t *testing.T) {
+	t.Setenv("PREV_BOT_USERNAME", "@bot-user")
+	conf := config.Config{Viper: config.NewStore()}
+	assert.Equal(t, "prev", resolveMentionHandle(conf))
+}
+
+func TestResolveMentionHandle_FixedWhenUnset(t *testing.T) {
+	conf := config.Config{Viper: config.NewStore()}
+	assert.Equal(t, "prev", resolveMentionHandle(conf))
 }
 
 func TestHasMentionCommand(t *testing.T) {
-	assert.True(t, hasMentionCommand("@ange.saadjio review this", "ange.saadjio", "review"))
-	assert.False(t, hasMentionCommand("@ange.saadjio review this", "", "review"))
-	assert.False(t, hasMentionCommand("@someoneelse review this", "ange.saadjio", "review"))
+	assert.True(t, hasMentionCommand("@prev review this", "prev", "review"))
+	assert.False(t, hasMentionCommand("@prev review this", "", "review"))
+	assert.False(t, hasMentionCommand("@someoneelse review this", "prev", "review"))
 }
 
 func TestInlineKey_IgnoresBody(t *testing.T) {
@@ -55,10 +49,10 @@ func TestInlineSeverityKey_IncludesSeverity(t *testing.T) {
 	assert.NotEqual(t, k1, k2)
 }
 
-func TestIsReplyRequest_WithQuestionMention(t *testing.T) {
-	assert.True(t, isReplyRequest("@ange.saadjio you see other issue ?", "ange.saadjio"))
-	assert.True(t, isReplyRequest("ange.saadjio can you check this?", "ange.saadjio"))
-	assert.False(t, isReplyRequest("@someoneelse can you check this?", "ange.saadjio"))
+func TestIsReplyRequest_OnlyExplicitReplyCommand(t *testing.T) {
+	assert.True(t, isReplyRequest("@prev reply", "prev"))
+	assert.False(t, isReplyRequest("@prev can you check this?", "prev"))
+	assert.False(t, isReplyRequest("@someoneelse reply", "prev"))
 }
 
 func TestConciseInlineBody(t *testing.T) {
@@ -299,13 +293,13 @@ func TestRefineInlinePositionByMessage_KeepExactAddedAnchor(t *testing.T) {
 
 func TestIsMRPaused_RespectsPauseResumeOrder(t *testing.T) {
 	notes := []vcs.MRNote{
-		{Body: "@ange.saadjio pause"},
+		{Body: "@prev pause"},
 		{Body: "some other note"},
 	}
-	assert.True(t, isMRPaused(notes, "ange.saadjio"))
+	assert.True(t, isMRPaused(notes, "prev"))
 
-	notes = append(notes, vcs.MRNote{Body: "@ange.saadjio resume"})
-	assert.False(t, isMRPaused(notes, "ange.saadjio"))
+	notes = append(notes, vcs.MRNote{Body: "@prev resume"})
+	assert.False(t, isMRPaused(notes, "prev"))
 }
 
 func TestPausedDiscussions_ScopedPerThread(t *testing.T) {
@@ -313,18 +307,18 @@ func TestPausedDiscussions_ScopedPerThread(t *testing.T) {
 		{
 			ID: "d1",
 			Notes: []vcs.MRDiscussionNote{
-				{Body: "@ange.saadjio pause"},
+				{Body: "@prev pause"},
 			},
 		},
 		{
 			ID: "d2",
 			Notes: []vcs.MRDiscussionNote{
-				{Body: "@ange.saadjio pause"},
-				{Body: "@ange.saadjio resume"},
+				{Body: "@prev pause"},
+				{Body: "@prev resume"},
 			},
 		},
 	}
-	paused := pausedDiscussions(discussions, "ange.saadjio")
+	paused := pausedDiscussions(discussions, "prev")
 	assert.True(t, paused["d1"])
 	assert.False(t, paused["d2"])
 }

@@ -31,6 +31,7 @@ const (
 	prevSummaryMarker   = "<!-- prev:summary -->"
 	prevReuseMarker     = "<!-- prev:reuse -->"
 	prevBaselinePrefix  = "<!-- prev:baseline "
+	prevMentionHandle   = "prev"
 )
 
 func init() {
@@ -911,18 +912,8 @@ type reusableThread struct {
 }
 
 func resolveMentionHandle(conf config.Config) string {
-	h := strings.TrimSpace(os.Getenv("PREV_MENTION_HANDLE"))
-	if h == "" {
-		h = strings.TrimSpace(os.Getenv("PREV_BOT_USERNAME"))
-	}
-	if h != "" {
-		return strings.TrimPrefix(h, "@")
-	}
-	if conf.Viper == nil {
-		return ""
-	}
-	h = strings.TrimSpace(conf.Viper.GetString("review.mention_handle"))
-	return strings.TrimPrefix(h, "@")
+	_ = conf
+	return prevMentionHandle
 }
 
 func collectCarryOverFindings(
@@ -1352,26 +1343,7 @@ func hasMentionCommand(body, mentionHandle, command string) bool {
 }
 
 func isReplyRequest(body, mentionHandle string) bool {
-	if hasMentionCommand(body, mentionHandle, "reply") {
-		return true
-	}
-	if hasMentionCommand(body, mentionHandle, "pause") ||
-		hasMentionCommand(body, mentionHandle, "resume") ||
-		hasMentionCommand(body, mentionHandle, "review") ||
-		hasMentionCommand(body, mentionHandle, "summary") {
-		return false
-	}
-	handle := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(mentionHandle), "@"))
-	if handle == "" {
-		return false
-	}
-	b := strings.ToLower(body)
-	hasMention := strings.Contains(b, "@"+handle) ||
-		regexp.MustCompile(`\b`+regexp.QuoteMeta(handle)+`\b`).MatchString(b)
-	if !hasMention {
-		return false
-	}
-	return true
+	return hasMentionCommand(body, mentionHandle, "reply")
 }
 
 func isBotAuthor(author, mentionHandle string) bool {
