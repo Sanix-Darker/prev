@@ -1,49 +1,39 @@
-We are using [rantav/go-archetype](https://github.com/rantav/go-archetype) to enable the creation of new projects from that template.
+# prev Getting Started
 
-## Install `go-archetype`
+Use `prev` to review local diffs, git history, and merge/pull requests from the terminal.
 
-```bash
-$ go install github.com/rantav/go-archetype@latest
-```
+## Install
 
-## Set the main variables
+Choose one of the supported install paths:
 
 ```bash
-$ DEST_FOLDER=/path/to/destination # Non existing folder
-$ REPO_BASE_URL=github.com
-$ REPO_USER=sanix-darker
-$ REPO_NAME=my-awesome-cli
+brew install sanix-darker/tap/prev
+# or
+go install github.com/sanix-darker/prev@latest
 ```
 
-## Generate your project's base
+## Configure a Provider
+
+Set credentials for the provider you want to use. OpenAI is the default:
 
 ```bash
-$ go-archetype transform \
-  --transformations .go-archetype.yaml \
-  --source . \
-  --destination ${DEST_FOLDER} \
-  -- \
-  --repo_base_url ${REPO_BASE_URL} \
-  --repo_user ${REPO_USER} \
-  --repo_name ${REPO_NAME}
+export OPENAI_API_KEY=sk-xxx
 ```
 
-Answer the questions.
+Other supported providers include Anthropic, Azure OpenAI, Gemini, Ollama, Groq, Together, LM Studio, and generic OpenAI-compatible endpoints.
 
-## Init your git repository and push
+## First Commands
 
 ```bash
-$ cd ${DEST_FOLDER}
-$ git init
-$ git add .
-$ git commit -m "first commit"
-$ git branch -M main
-$ git remote add origin git@${REPO_BASE_URL}:${REPO_USER}/${REPO_NAME}.git
-$ git push -u origin main
+prev diff fixtures/test_diff1.py,fixtures/test_diff2.py
+prev branch feature-branch --repo /path/to/repo
+prev mr review my-group/my-project 42 --dry-run
+prev config init
+prev config validate
 ```
 
-!!! info "About the License"
+## Next Reading
 
-    As you may have notices the `LICENSE` file is missing. Please add the according Licence file at the root of your fresh new repository. You can find most of the licenses [here](https://github.com/licenses/license-templates/tree/master/templates).
-
-Enjoy developing your awesome cli.
+- `README.md` for the full command surface
+- `docs/prev/features.md` for reviewer capabilities
+- `WIKI.md` for configuration reference

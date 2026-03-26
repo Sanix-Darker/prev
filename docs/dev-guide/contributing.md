@@ -1,64 +1,55 @@
 # Contributing
 
-By participating in this project, you agree to abide our
-[code of conduct](https://github.com/sanix-darker/prev/blob/main/.github/CODE_OF_CONDUCT.md).
+By participating in this project, you agree to abide by the
+[code of conduct](./code_of_conduct.md).
 
-## Set up your machine
-
-`prev` is written in [Go](https://golang.org/).
+## Development Setup
 
 Prerequisites:
 
-- [Go 1.20+](https://golang.org/doc/install)
+- [Go 1.24+](https://golang.org/doc/install)
+- Git
+- Optional: Docker (for container validation)
 
-Other things you might need to run the tests:
-
-- [Docker](https://www.docker.com/)
-
-Clone `prev` anywhere:
+Clone the repository and work from the project root:
 
 ```sh
 git clone git@github.com:sanix-darker/prev.git
+cd prev
 ```
 
-`cd` into the directory and install the dependencies:
+## Build and Test
+
+Use the standard Go toolchain commands during development:
 
 ```sh
-make local/deps
+go build ./...
+go test ./...
 ```
 
-## Test your change
-
-You can create a branch for your changes and try to build from the source as you go:
+Recommended validation before opening a pull request:
 
 ```sh
-make go/build
+go test -race ./...
+go vet ./...
+go test -tags=e2e ./tests/...
 ```
 
-When you are satisfied with the changes, we suggest you run:
+## Commits
 
-```sh
-make go/test
-```
+Commit messages should follow the Conventional Commits specification:
 
-Before you commit the changes, we also suggest you run:
+- `feat:` for new features
+- `fix:` for bug fixes
+- `test:` for test-only changes
+- `docs:` for documentation changes
+- `refactor:` for internal restructuring without behavior changes
 
-```sh
-make pre-commit
-```
+Reference: [conventionalcommits.org](https://www.conventionalcommits.org/)
 
-## Create a commit
+## Pull Requests
 
-Commit messages should be well formatted, and to make that "standardized", we
-are using Conventional Commits.
-
-You can follow the documentation on
-[their website](https://www.conventionalcommits.org).
-
-## Submit a pull request
-
-Push your branch to your `prev` fork and open a pull request against the main branch.
-
-## Credit
-
-This CONTRIBUTING guideline is very inspired by the [goreleaser](https://github.com/goreleaser/goreleaser/blob/main/CONTRIBUTING.md). Thanks `goreleaser`.
+1. Create a topic branch.
+2. Keep changes scoped and tested.
+3. Update docs when behavior or configuration changes.
+4. Open the pull request against `main`.

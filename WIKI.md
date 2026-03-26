@@ -50,6 +50,13 @@ This document is the source-of-truth for `prev` runtime configuration as impleme
 | `review.structured_output` | bool | `false` | none | `--structured-output` | JSON finding parser mode |
 | `review.incremental` | bool | `false` | none | `--incremental` | baseline-scoped MR reviews |
 | `review.inline_only` | bool | `false` | none | `--inline-only` | suppress summary/replies |
+| `review.memory` | bool | `true` | none | `--memory` | enable persistent review memory |
+| `review.memory_file` | string | `.prev/review-memory.md` | none | `--memory-file` | memory file location |
+| `review.memory_max` | int | `12` | none | `--memory-max` | max memory entries injected into prompts |
+| `review.native_impact` | bool | `true` | none | `--native-impact` | deterministic impact/risk precheck toggle |
+| `review.native_impact_max_symbols` | int | `12` | none | `--native-impact-max-symbols` | max changed symbols in impact map |
+| `review.fix_prompt` | string | `off` | none | `--fix-prompt` | inline AI fix prompt mode |
+| `review.mention_handle` | string | `prev` | `PREV_MENTION_HANDLE` | none | MR thread command handle |
 | `review.serena_mode` | string | `auto` | none | `--serena` | symbol-level context enrichment |
 | `review.context_lines` | int | `10` | none | `--context` | context enrichment |
 | `review.max_tokens` | int | `80000` | none | `--max-tokens` | enrichment token budget |
@@ -61,20 +68,20 @@ This document is the source-of-truth for `prev` runtime configuration as impleme
 | `max_characters_per_key_point` | int | `100` | none | none | output shaping |
 | `explain` | bool | `false` | none | none | output shaping |
 
-Thread command handle is fixed to `@prev` (for example `@prev reply`, `@prev pause`).
+MR thread commands default to `@prev` and can be customized with `review.mention_handle` or `PREV_MENTION_HANDLE`.
 
-### MR Review Memory (CLI Parameters)
+### MR Review Memory
 
-These are CLI-only parameters for `prev mr review` (not persisted in config keys yet):
+These settings are persisted in config and can still be overridden per run with CLI flags.
 
 | Parameter | Type | Default | Purpose |
 |---|---|---|---|
-| `--memory` | bool | `true` | Enable persistent cross-MR memory |
-| `--memory-file` | string | `.prev/review-memory.md` | Markdown memory file location |
-| `--memory-max` | int | `12` | Max historical items injected into prompt |
-| `--native-impact` | bool | `true` | Enable deterministic native impact/risk precheck |
-| `--native-impact-max-symbols` | int | `12` | Max changed symbols included in impact map |
-| `--fix-prompt` | string | `off` | Inline AI fix prompt mode: `off`, `auto`, `always` |
+| `review.memory` / `--memory` | bool | `true` | Enable persistent cross-MR memory |
+| `review.memory_file` / `--memory-file` | string | `.prev/review-memory.md` | Markdown memory file location |
+| `review.memory_max` / `--memory-max` | int | `12` | Max historical items injected into prompts |
+| `review.native_impact` / `--native-impact` | bool | `true` | Enable deterministic native impact/risk precheck |
+| `review.native_impact_max_symbols` / `--native-impact-max-symbols` | int | `12` | Max changed symbols included in impact map |
+| `review.fix_prompt` / `--fix-prompt` | string | `off` | Inline AI fix prompt mode: `off`, `auto`, `always` |
 
 Memory file format is markdown with a fenced machine block:
 
@@ -160,9 +167,16 @@ Examples:
 
 ## Validation Rules (`prev config validate`)
 
+- `provider` must resolve to a registered provider
+- `providers.<name>.max_tokens` must be `>= 0`
+- `providers.<name>.timeout` must be a valid Go duration string
 - `review.nitpick` must be `0..10`
 - `review.passes` must be `0..6`
 - `review.max_comments` must be `>= 0`
+- `review.memory_max` must be `>= 0`
+- `review.native_impact_max_symbols` must be `>= 0`
+- `review.fix_prompt` must be `off|auto|always`
+- `review.mention_handle` must match `[a-z0-9][a-z0-9_-]{0,38}`
 - `review.context_lines` must be `>= 0`
 - `review.max_tokens` must be `>= 0`
 - Provider required fields:
