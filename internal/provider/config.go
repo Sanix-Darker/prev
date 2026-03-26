@@ -190,6 +190,16 @@ review:
   incremental: false
   # Post inline comments only (skip summary notes and thread replies).
   inline_only: false
+  # Persistent review memory and deterministic prechecks.
+  memory: true
+  memory_file: ".prev/review-memory.md"
+  memory_max: 12
+  native_impact: true
+  native_impact_max_symbols: 12
+  # Include AI fix prompt blocks in inline comments: off | auto | always.
+  fix_prompt: "off"
+  # Bot handle used in MR thread commands (leading @ optional).
+  mention_handle: "prev"
   # Optional Serena/context defaults for MR review.
   # serena_mode: "auto"
   # context_lines: 10

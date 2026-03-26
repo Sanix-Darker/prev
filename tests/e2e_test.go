@@ -228,3 +228,18 @@ func TestE2E_BranchHelp(t *testing.T) {
 	assert.Contains(t, stdout, "--legacy")
 	assert.Contains(t, stdout, "--serena")
 }
+
+func TestE2E_ConfigEffective_ShowsReviewControls(t *testing.T) {
+	cmd := exec.Command(binaryPath, "config", "effective")
+	cmd.Env = append(os.Environ(),
+		"PREV_PROVIDER=openai",
+		"OPENAI_API_KEY=test-key",
+		"PREV_MENTION_HANDLE=review-bot",
+	)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "output: %s", string(out))
+	assert.Contains(t, string(out), "mention_handle: review-bot")
+	assert.Contains(t, string(out), "memory: true")
+	assert.Contains(t, string(out), "native_impact: true")
+	assert.Contains(t, string(out), "fix_prompt: \"off\"")
+}

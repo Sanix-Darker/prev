@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/provider"
@@ -147,18 +148,25 @@ func buildEffectiveConfig(conf config.Config) map[string]interface{} {
 			"multiplier":       floatOrDefault(rawValue(v, "retry.multiplier"), 2.0),
 		},
 		"review": map[string]interface{}{
-			"strictness":        strOrDefault(v.GetString("review.strictness"), "normal"),
-			"nitpick":           intOrDefault(v.GetInt("review.nitpick"), 5),
-			"passes":            intOrDefault(v.GetInt("review.passes"), 1),
-			"max_comments":      intOrDefault(v.GetInt("review.max_comments"), 0),
-			"filter_mode":       strOrDefault(v.GetString("review.filter_mode"), "diff_context"),
-			"mr_diff_source":    strOrDefault(v.GetString("review.mr_diff_source"), "auto"),
-			"structured_output": v.GetBool("review.structured_output"),
-			"incremental":       v.GetBool("review.incremental"),
-			"inline_only":       v.GetBool("review.inline_only"),
-			"serena_mode":       strOrDefault(v.GetString("review.serena_mode"), "auto"),
-			"context_lines":     intOrDefault(v.GetInt("review.context_lines"), 10),
-			"max_tokens":        intOrDefault(v.GetInt("review.max_tokens"), 80000),
+			"strictness":                strOrDefault(v.GetString("review.strictness"), "normal"),
+			"nitpick":                   intOrDefault(v.GetInt("review.nitpick"), 5),
+			"passes":                    intOrDefault(v.GetInt("review.passes"), 1),
+			"max_comments":              intOrDefault(v.GetInt("review.max_comments"), 0),
+			"filter_mode":               strOrDefault(v.GetString("review.filter_mode"), "diff_context"),
+			"mr_diff_source":            strOrDefault(v.GetString("review.mr_diff_source"), "auto"),
+			"structured_output":         v.GetBool("review.structured_output"),
+			"incremental":               v.GetBool("review.incremental"),
+			"inline_only":               v.GetBool("review.inline_only"),
+			"memory":                    boolOrDefault(rawValue(v, "review.memory"), true),
+			"memory_file":               strOrDefault(v.GetString("review.memory_file"), defaultReviewMemoryFile),
+			"memory_max":                intOrDefault(v.GetInt("review.memory_max"), 12),
+			"native_impact":             boolOrDefault(rawValue(v, "review.native_impact"), true),
+			"native_impact_max_symbols": intOrDefault(v.GetInt("review.native_impact_max_symbols"), 12),
+			"fix_prompt":                strOrDefault(v.GetString("review.fix_prompt"), "off"),
+			"mention_handle":            strOrDefault(resolveMentionHandle(conf), prevMentionHandle),
+			"serena_mode":               strOrDefault(v.GetString("review.serena_mode"), "auto"),
+			"context_lines":             intOrDefault(v.GetInt("review.context_lines"), 10),
+			"max_tokens":                intOrDefault(v.GetInt("review.max_tokens"), 80000),
 			"conventions": map[string]interface{}{
 				"labels": stringSliceOrDefault(v.GetStringSlice("review.conventions.labels"), []string{"issue", "suggestion", "remark"}),
 			},
@@ -215,6 +223,27 @@ func validateEffectiveConfig(conf config.Config) []string {
 	model := strings.TrimSpace(pv.GetString("model"))
 	baseURL := strings.TrimSpace(pv.GetString("base_url"))
 
+	knownProviders := provider.Names()
+	known := false
+	for _, name := range knownProviders {
+		if name == pcfg.Name {
+			known = true
+			break
+		}
+	}
+	if !known {
+		errs = append(errs, fmt.Sprintf("provider must be one of: %s (got %q)", strings.Join(knownProviders, ", "), pcfg.Name))
+		return errs
+	}
+	if mt := pv.GetInt("max_tokens"); mt < 0 {
+		errs = append(errs, fmt.Sprintf("providers.%s.max_tokens must be >= 0", pcfg.Name))
+	}
+	if timeout := strings.TrimSpace(pv.GetString("timeout")); timeout != "" {
+		if _, err := time.ParseDuration(timeout); err != nil {
+			errs = append(errs, fmt.Sprintf("providers.%s.timeout must be a valid duration: %v", pcfg.Name, err))
+		}
+	}
+
 	switch pcfg.Name {
 	case "openai":
 		if apiKey == "" {
@@ -264,6 +293,22 @@ func validateEffectiveConfig(conf config.Config) []string {
 	if src := strings.ToLower(strings.TrimSpace(v.GetString("review.mr_diff_source"))); src != "" &&
 		src != "auto" && src != "git" && src != "raw" && src != "api" {
 		errs = append(errs, "review.mr_diff_source must be one of: auto, git, raw, api")
+	}
+	if mode := strings.ToLower(strings.TrimSpace(v.GetString("review.fix_prompt"))); mode != "" &&
+		mode != "off" && mode != "auto" && mode != "always" {
+		errs = append(errs, "review.fix_prompt must be one of: off, auto, always")
+	}
+	if mh := strings.TrimSpace(v.GetString("review.mention_handle")); mh != "" && normalizeMentionHandle(mh) == "" {
+		errs = append(errs, "review.mention_handle must match [a-z0-9][a-z0-9_-]{0,38} (leading @ optional)")
+	}
+	if mm := v.GetInt("review.memory_max"); mm < 0 {
+		errs = append(errs, "review.memory_max must be >= 0")
+	}
+	if ns := v.GetInt("review.native_impact_max_symbols"); ns < 0 {
+		errs = append(errs, "review.native_impact_max_symbols must be >= 0")
+	}
+	if mf := strings.TrimSpace(v.GetString("review.memory_file")); v.IsSet("review.memory_file") && mf == "" {
+		errs = append(errs, "review.memory_file must not be empty when set")
 	}
 	if mode := strings.ToLower(strings.TrimSpace(v.GetString("review.serena_mode"))); mode != "" &&
 		mode != "auto" && mode != "on" && mode != "off" {

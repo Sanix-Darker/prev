@@ -143,30 +143,39 @@ func newMRReviewCmd() *cobra.Command {
 				"diff_context",
 			)
 			filterMode = normalizeInlineFilterMode(filterMode)
-			memoryEnabled := true
-			if f := cmd.Flags().Lookup("memory"); f != nil && f.Changed {
-				memoryEnabled, _ = cmd.Flags().GetBool("memory")
-			}
-			memoryFile, _ := cmd.Flags().GetString("memory-file")
-			memoryMax := 12
-			if f := cmd.Flags().Lookup("memory-max"); f != nil && f.Changed {
-				memoryMax, _ = cmd.Flags().GetInt("memory-max")
-			}
+			memoryEnabled := resolveMRBoolSetting(
+				cmd, "memory", conf,
+				[]string{"review.memory"},
+				true,
+			)
+			memoryFile := resolveMRStringSetting(
+				cmd, "memory-file", conf,
+				[]string{"review.memory_file"},
+				defaultReviewMemoryFile,
+			)
+			memoryMax := resolveMRIntSetting(
+				cmd, "memory-max", conf,
+				[]string{"review.memory_max"},
+				12,
+			)
 			if memoryMax <= 0 {
 				memoryMax = 12
 			}
-			nativeImpact := true
-			if f := cmd.Flags().Lookup("native-impact"); f != nil && f.Changed {
-				nativeImpact, _ = cmd.Flags().GetBool("native-impact")
-			}
-			nativeImpactMaxSymbols := 12
-			if f := cmd.Flags().Lookup("native-impact-max-symbols"); f != nil && f.Changed {
-				nativeImpactMaxSymbols, _ = cmd.Flags().GetInt("native-impact-max-symbols")
-			}
-			fixPromptMode := "off"
-			if f := cmd.Flags().Lookup("fix-prompt"); f != nil && f.Changed {
-				fixPromptMode, _ = cmd.Flags().GetString("fix-prompt")
-			}
+			nativeImpact := resolveMRBoolSetting(
+				cmd, "native-impact", conf,
+				[]string{"review.native_impact"},
+				true,
+			)
+			nativeImpactMaxSymbols := resolveMRIntSetting(
+				cmd, "native-impact-max-symbols", conf,
+				[]string{"review.native_impact_max_symbols"},
+				12,
+			)
+			fixPromptMode := resolveMRStringSetting(
+				cmd, "fix-prompt", conf,
+				[]string{"review.fix_prompt"},
+				"off",
+			)
 			fixPromptMode = normalizeFixPromptMode(fixPromptMode)
 			structuredOutput := false
 			if conf.Viper != nil {
@@ -670,6 +679,28 @@ func resolveMRIntSetting(
 	return fallback
 }
 
+func resolveMRBoolSetting(
+	cmd *cobra.Command,
+	flagName string,
+	conf config.Config,
+	configKeys []string,
+	fallback bool,
+) bool {
+	if f := cmd.Flags().Lookup(flagName); f != nil && f.Changed {
+		if v, err := cmd.Flags().GetBool(flagName); err == nil {
+			return v
+		}
+	}
+	if conf.Viper != nil {
+		for _, k := range configKeys {
+			if conf.Viper.IsSet(k) {
+				return conf.Viper.GetBool(k)
+			}
+		}
+	}
+	return fallback
+}
+
 type hunkRange struct {
 	start int
 	end   int
@@ -912,8 +943,32 @@ type reusableThread struct {
 }
 
 func resolveMentionHandle(conf config.Config) string {
-	_ = conf
+	if conf.Viper != nil {
+		for _, key := range []string{"review.mention_handle", "mention_handle"} {
+			if conf.Viper.IsSet(key) {
+				if handle := normalizeMentionHandle(conf.Viper.GetString(key)); handle != "" {
+					return handle
+				}
+			}
+		}
+	}
+	if handle := normalizeMentionHandle(os.Getenv("PREV_MENTION_HANDLE")); handle != "" {
+		return handle
+	}
 	return prevMentionHandle
+}
+
+func normalizeMentionHandle(raw string) string {
+	handle := strings.TrimSpace(raw)
+	handle = strings.TrimPrefix(handle, "@")
+	handle = strings.ToLower(handle)
+	if handle == "" {
+		return ""
+	}
+	if ok, _ := regexp.MatchString(`^[a-z0-9][a-z0-9_-]{0,38}$`, handle); !ok {
+		return ""
+	}
+	return handle
 }
 
 func collectCarryOverFindings(

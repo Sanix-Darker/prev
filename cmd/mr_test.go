@@ -1046,3 +1046,38 @@ func TestHasAnyModifiedLines(t *testing.T) {
 	}
 	assert.True(t, hasAnyModifiedLines(withMods))
 }
+
+func TestResolveMentionHandle_FromReviewConfig(t *testing.T) {
+	v := config.NewStore()
+	v.Set("review.mention_handle", "@review-bot")
+	conf := config.Config{Viper: v}
+	assert.Equal(t, "review-bot", resolveMentionHandle(conf))
+}
+
+func TestResolveMentionHandle_FromEnv(t *testing.T) {
+	t.Setenv("PREV_MENTION_HANDLE", "qa_bot")
+	conf := config.Config{Viper: config.NewStore()}
+	assert.Equal(t, "qa_bot", resolveMentionHandle(conf))
+}
+
+func TestResolveMentionHandle_InvalidFallsBackToDefault(t *testing.T) {
+	v := config.NewStore()
+	v.Set("review.mention_handle", "bad handle")
+	conf := config.Config{Viper: v}
+	assert.Equal(t, "prev", resolveMentionHandle(conf))
+}
+
+func TestResolveMRBoolSetting_PrefersFlagThenConfig(t *testing.T) {
+	v := config.NewStore()
+	v.Set("review.memory", false)
+	conf := config.Config{Viper: v}
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().Bool("memory", true, "")
+
+	assert.False(t, resolveMRBoolSetting(cmd, "memory", conf, []string{"review.memory"}, true))
+
+	require.NoError(t, cmd.Flags().Set("memory", "true"))
+	f := cmd.Flags().Lookup("memory")
+	f.Changed = true
+	assert.True(t, resolveMRBoolSetting(cmd, "memory", conf, []string{"review.memory"}, false))
+}
