@@ -956,11 +956,12 @@ type carryOverFinding struct {
 }
 
 type reusableThread struct {
-	DiscussionID string
-	FilePath     string
-	Line         int
-	Severity     string
-	Message      string
+	DiscussionID  string
+	FilePath      string
+	Line          int
+	Severity      string
+	Message       string
+	PrimarySymbol string
 }
 
 func resolveMentionHandle(conf config.Config) string {
@@ -1060,10 +1061,12 @@ func collectCarryOverFindings(
 }
 
 type ignoredFinding struct {
-	FilePath string
-	Line     int
-	Message  string
-	RuleID   string
+	FilePath      string
+	Line          int
+	Message       string
+	RuleID        string
+	BehaviorID    string
+	PrimarySymbol string
 }
 
 func appendCarryOverGuidelines(guidelines string, carry []carryOverFinding) string {
@@ -1241,10 +1244,12 @@ func collectIgnoredFindings(
 			continue
 		}
 		item := ignoredFinding{
-			FilePath: strings.TrimSpace(path),
-			Line:     line,
-			Message:  strings.TrimSpace(msg),
-			RuleID:   memoryRuleID(msg),
+			FilePath:      strings.TrimSpace(path),
+			Line:          line,
+			Message:       strings.TrimSpace(msg),
+			RuleID:        memoryRuleID(msg),
+			BehaviorID:    semanticBehaviorID(msg),
+			PrimarySymbol: semanticPrimarySymbol(msg, path),
 		}
 		key := strings.ToLower(item.FilePath) + "|" + item.RuleID + "|" + strconv.Itoa(item.Line)
 		if _, ok := seen[key]; ok {
@@ -1808,11 +1813,12 @@ func collectReusableThreads(
 				continue
 			}
 			out = append(out, reusableThread{
-				DiscussionID: d.ID,
-				FilePath:     anchorPath,
-				Line:         anchorLine,
-				Severity:     sev,
-				Message:      msg,
+				DiscussionID:  d.ID,
+				FilePath:      anchorPath,
+				Line:          anchorLine,
+				Severity:      sev,
+				Message:       msg,
+				PrimarySymbol: semanticPrimarySymbol(msg, anchorPath),
 			})
 			break
 		}
@@ -1841,9 +1847,9 @@ func matchReusableThread(candidates []reusableThread, grp inlineGroup) (reusable
 		if !strings.EqualFold(strings.TrimSpace(c.Severity), strings.TrimSpace(grp.Severity)) {
 			continue
 		}
-		msgScore := tokenOverlapScore(c.Message, grp.Message)
+		msgScore := semanticMessageScore(c.Message, c.PrimarySymbol, grp.Message, semanticPrimarySymbol(grp.Message, grp.FilePath))
 		distPenalty := absInt(c.Line - grp.NewLine)
-		score := msgScore*10 - minInt(distPenalty, 50)
+		score := msgScore - minInt(distPenalty, 50)
 		if score > bestScore {
 			bestScore = score
 			bestIdx = i
@@ -1852,7 +1858,7 @@ func matchReusableThread(candidates []reusableThread, grp inlineGroup) (reusable
 	if bestIdx < 0 {
 		return reusableThread{}, false
 	}
-	if bestScore < 10 {
+	if bestScore < 25 {
 		return reusableThread{}, false
 	}
 	return candidates[bestIdx], true

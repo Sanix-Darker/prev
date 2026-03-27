@@ -236,3 +236,70 @@ func TestFilterIgnoredFindings_FiltersByMemoryAndRule(t *testing.T) {
 	require.Len(t, filtered, 1)
 	assert.Equal(t, "different issue", filtered[0].Message)
 }
+
+func TestResolveReviewMemoryID_ReusesSemanticMatch(t *testing.T) {
+	mem := reviewMemory{
+		Version: reviewMemoryVersion,
+		Entries: []reviewMemoryEntry{
+			{
+				ID:            "existing",
+				RuleID:        memoryRuleID("Missing nil check before request dereference."),
+				BehaviorID:    semanticBehaviorID("Missing nil check before request dereference."),
+				PrimarySymbol: "request",
+				FilePath:      "api/handler.go",
+				Line:          42,
+				Message:       "Missing nil check before request dereference.",
+				Status:        "open",
+			},
+		},
+	}
+
+	id := resolveReviewMemoryID(mem, "api/handler.go", 45, "Request dereference can panic when nil check is missing.")
+	assert.Equal(t, "existing", id)
+}
+
+func TestAppendReviewMemoryGuidelines_RevalidatesByChangedSymbol(t *testing.T) {
+	mem := reviewMemory{
+		Version: reviewMemoryVersion,
+		Entries: []reviewMemoryEntry{
+			{
+				ID:            "a",
+				Status:        "open",
+				Severity:      "HIGH",
+				FilePath:      "internal/service/order.go",
+				Line:          31,
+				Message:       "ProcessOrder should reject nil payload before dereference.",
+				PrimarySymbol: "ProcessOrder",
+				Hits:          3,
+				LastSeen:      "2026-03-01T12:00:00Z",
+			},
+			{
+				ID:            "b",
+				Status:        "open",
+				Severity:      "HIGH",
+				FilePath:      "internal/service/user.go",
+				Line:          10,
+				Message:       "Unrelated issue",
+				PrimarySymbol: "ProcessUser",
+				Hits:          1,
+				LastSeen:      "2026-03-01T11:00:00Z",
+			},
+		},
+	}
+	changes := []diffparse.FileChange{
+		{
+			NewName: "cmd/review.go",
+			Hunks: []diffparse.Hunk{
+				{
+					Lines: []diffparse.DiffLine{
+						{Type: diffparse.LineAdded, Content: "ProcessOrder(req)"},
+					},
+				},
+			},
+		},
+	}
+
+	out := appendReviewMemoryGuidelines("Base", mem, changes, 10)
+	assert.Contains(t, out, "ProcessOrder should reject nil payload")
+	assert.NotContains(t, out, "Unrelated issue")
+}

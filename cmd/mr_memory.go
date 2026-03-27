@@ -31,18 +31,20 @@ type reviewMemory struct {
 }
 
 type reviewMemoryEntry struct {
-	ID        string `json:"id"`
-	RuleID    string `json:"rule_id"`
-	Status    string `json:"status"` // open|fixed|ignored
-	Severity  string `json:"severity"`
-	FilePath  string `json:"file_path"`
-	Line      int    `json:"line"`
-	Message   string `json:"message"`
-	FirstSeen string `json:"first_seen"`
-	LastSeen  string `json:"last_seen"`
-	Hits      int    `json:"hits"`
-	Fixes     int    `json:"fixes"`
-	LastMR    string `json:"last_mr"`
+	ID            string `json:"id"`
+	RuleID        string `json:"rule_id"`
+	BehaviorID    string `json:"behavior_id,omitempty"`
+	PrimarySymbol string `json:"primary_symbol,omitempty"`
+	Status        string `json:"status"` // open|fixed|ignored
+	Severity      string `json:"severity"`
+	FilePath      string `json:"file_path"`
+	Line          int    `json:"line"`
+	Message       string `json:"message"`
+	FirstSeen     string `json:"first_seen"`
+	LastSeen      string `json:"last_seen"`
+	Hits          int    `json:"hits"`
+	Fixes         int    `json:"fixes"`
+	LastMR        string `json:"last_mr"`
 }
 
 func loadReviewMemory(repoPath, configuredPath string) (reviewMemory, string, error) {
@@ -191,6 +193,12 @@ func normalizeReviewMemory(mem *reviewMemory) {
 		if mem.Entries[i].RuleID == "" {
 			mem.Entries[i].RuleID = memoryRuleID(mem.Entries[i].Message)
 		}
+		if mem.Entries[i].BehaviorID == "" {
+			mem.Entries[i].BehaviorID = semanticBehaviorID(mem.Entries[i].Message)
+		}
+		if mem.Entries[i].PrimarySymbol == "" {
+			mem.Entries[i].PrimarySymbol = semanticPrimarySymbol(mem.Entries[i].Message, mem.Entries[i].FilePath)
+		}
 	}
 	sort.SliceStable(mem.Entries, func(i, j int) bool {
 		ri := severityRank(mem.Entries[i].Severity)
@@ -292,7 +300,7 @@ func updateReviewMemoryFromDiscussions(mem *reviewMemory, discussions []vcs.MRDi
 			if status == "" {
 				continue
 			}
-			id := memoryEntryID(n.FilePath, n.Line, msg)
+			id := resolveReviewMemoryID(*mem, n.FilePath, n.Line, msg)
 			if curr, exists := byID[id]; exists {
 				// unresolved beats resolved for same key.
 				if curr.Status == "open" {
@@ -345,12 +353,50 @@ func updateReviewMemoryFromFindings(mem *reviewMemory, findings []core.FileComme
 		if filePath == "" || f.Line <= 0 || strings.TrimSpace(f.Message) == "" {
 			continue
 		}
-		id := memoryEntryID(filePath, f.Line, f.Message)
+		id := resolveReviewMemoryID(*mem, filePath, f.Line, f.Message)
 		if upsertReviewMemory(mem, id, filePath, f.Line, f.Severity, f.Message, "open", mrRef, now) {
 			changed = true
 		}
 	}
 	return changed
+}
+
+func resolveReviewMemoryID(mem reviewMemory, filePath string, line int, message string) string {
+	exactID := memoryEntryID(filePath, line, message)
+	currentRuleID := memoryRuleID(message)
+	currentBehaviorID := semanticBehaviorID(message)
+	currentSymbol := semanticPrimarySymbol(message, filePath)
+	bestIdx := -1
+	bestScore := -1
+	for i, entry := range mem.Entries {
+		if !strings.EqualFold(strings.TrimSpace(entry.FilePath), strings.TrimSpace(filePath)) {
+			continue
+		}
+		score := semanticMessageScore(entry.Message, entry.PrimarySymbol, message, currentSymbol)
+		if entry.RuleID == currentRuleID {
+			score += 30
+		}
+		if entry.BehaviorID != "" && entry.BehaviorID == currentBehaviorID {
+			score += 20
+		}
+		if line > 0 && entry.Line > 0 {
+			score -= minInt(absInt(entry.Line-line), 25)
+		}
+		if score > bestScore {
+			bestScore = score
+			bestIdx = i
+		}
+	}
+	if bestIdx >= 0 {
+		best := mem.Entries[bestIdx]
+		if bestScore >= 35 {
+			return best.ID
+		}
+		if strings.EqualFold(strings.TrimSpace(best.PrimarySymbol), strings.TrimSpace(currentSymbol)) && bestScore >= 25 {
+			return best.ID
+		}
+	}
+	return exactID
 }
 
 func upsertReviewMemory(
@@ -387,6 +433,8 @@ func upsertReviewMemory(
 		mem.Entries[i].LastSeen = when
 		mem.Entries[i].LastMR = mrRef
 		mem.Entries[i].RuleID = memoryRuleID(mem.Entries[i].Message)
+		mem.Entries[i].BehaviorID = semanticBehaviorID(mem.Entries[i].Message)
+		mem.Entries[i].PrimarySymbol = semanticPrimarySymbol(mem.Entries[i].Message, mem.Entries[i].FilePath)
 		if status == "open" {
 			mem.Entries[i].Hits++
 		}
@@ -397,18 +445,20 @@ func upsertReviewMemory(
 	}
 
 	entry := reviewMemoryEntry{
-		ID:        id,
-		RuleID:    memoryRuleID(message),
-		Status:    status,
-		Severity:  strings.ToUpper(strings.TrimSpace(severity)),
-		FilePath:  strings.TrimSpace(filePath),
-		Line:      line,
-		Message:   strings.TrimSpace(message),
-		FirstSeen: when,
-		LastSeen:  when,
-		Hits:      0,
-		Fixes:     0,
-		LastMR:    mrRef,
+		ID:            id,
+		RuleID:        memoryRuleID(message),
+		BehaviorID:    semanticBehaviorID(message),
+		PrimarySymbol: semanticPrimarySymbol(message, filePath),
+		Status:        status,
+		Severity:      strings.ToUpper(strings.TrimSpace(severity)),
+		FilePath:      strings.TrimSpace(filePath),
+		Line:          line,
+		Message:       strings.TrimSpace(message),
+		FirstSeen:     when,
+		LastSeen:      when,
+		Hits:          0,
+		Fixes:         0,
+		LastMR:        mrRef,
 	}
 	if entry.Severity == "" {
 		entry.Severity = "MEDIUM"
@@ -442,23 +492,30 @@ func appendReviewMemoryGuidelines(guidelines string, mem reviewMemory, changes [
 		}
 		changedPaths[strings.ToLower(path)] = struct{}{}
 	}
+	changedSymbols := extractChangedSymbols(changes, 24)
+	changedKeywords := changedTextKeywords(changes)
 
-	relevant := make([]reviewMemoryEntry, 0, maxItems)
+	type scoredEntry struct {
+		entry reviewMemoryEntry
+		score int
+	}
+	relevant := make([]scoredEntry, 0, maxItems)
 	for _, e := range mem.Entries {
-		if _, ok := changedPaths[strings.ToLower(e.FilePath)]; !ok {
+		score := semanticEvidenceScore(e, changedPaths, changedSymbols, changedKeywords)
+		if score <= 0 {
 			continue
 		}
-		relevant = append(relevant, e)
-		if len(relevant) >= maxItems {
-			break
-		}
+		relevant = append(relevant, scoredEntry{entry: e, score: score})
 	}
 	if len(relevant) == 0 {
 		for _, e := range mem.Entries {
 			if e.Status != "open" && e.Status != "ignored" {
 				continue
 			}
-			relevant = append(relevant, e)
+			relevant = append(relevant, scoredEntry{
+				entry: e,
+				score: semanticEvidenceScore(e, changedPaths, changedSymbols, changedKeywords),
+			})
 			if len(relevant) >= minInt(3, maxItems) {
 				break
 			}
@@ -467,14 +524,26 @@ func appendReviewMemoryGuidelines(guidelines string, mem reviewMemory, changes [
 	if len(relevant) == 0 {
 		return guidelines
 	}
+	sort.Slice(relevant, func(i, j int) bool {
+		if relevant[i].score != relevant[j].score {
+			return relevant[i].score > relevant[j].score
+		}
+		ri := severityRank(relevant[i].entry.Severity)
+		rj := severityRank(relevant[j].entry.Severity)
+		if ri != rj {
+			return ri > rj
+		}
+		return relevant[i].entry.LastSeen > relevant[j].entry.LastSeen
+	})
 
 	lines := []string{
-		"Historical reviewer memory from prior MRs (use this for consistency and regression checks):",
+		"Historical reviewer memory from prior MRs (revalidated against the current diff before injection):",
 	}
-	for i, e := range relevant {
+	for i, item := range relevant {
 		if i >= maxItems {
 			break
 		}
+		e := item.entry
 		lines = append(lines, fmt.Sprintf("- %s `%s:%d` [%s] %s (hits=%d fixes=%d)",
 			strings.ToUpper(e.Status), e.FilePath, e.Line, strings.ToUpper(e.Severity),
 			strings.TrimSpace(e.Message), e.Hits, e.Fixes))
@@ -523,10 +592,12 @@ func filterIgnoredFindings(findings []core.FileComment, mem reviewMemory, ignore
 			continue
 		}
 		allIgnored = append(allIgnored, ignoredFinding{
-			FilePath: entry.FilePath,
-			Line:     entry.Line,
-			Message:  entry.Message,
-			RuleID:   entry.RuleID,
+			FilePath:      entry.FilePath,
+			Line:          entry.Line,
+			Message:       entry.Message,
+			RuleID:        entry.RuleID,
+			BehaviorID:    entry.BehaviorID,
+			PrimarySymbol: entry.PrimarySymbol,
 		})
 	}
 	allIgnored = append(allIgnored, ignored...)
@@ -549,14 +620,23 @@ func ignoredMatchesFinding(finding core.FileComment, ignored []ignoredFinding) b
 		return false
 	}
 	ruleID := memoryRuleID(finding.Message)
+	behaviorID := semanticBehaviorID(finding.Message)
+	primarySymbol := semanticPrimarySymbol(finding.Message, finding.FilePath)
 	for _, item := range ignored {
 		if !strings.EqualFold(strings.TrimSpace(item.FilePath), filePath) {
 			continue
 		}
-		if strings.TrimSpace(item.RuleID) != "" && item.RuleID != ruleID {
-			continue
+		score := semanticMessageScore(item.Message, item.PrimarySymbol, finding.Message, primarySymbol)
+		if strings.TrimSpace(item.RuleID) != "" && item.RuleID == ruleID {
+			score += 30
 		}
-		if finding.Line > 0 && item.Line > 0 && absInt(finding.Line-item.Line) > 5 {
+		if strings.TrimSpace(item.BehaviorID) != "" && item.BehaviorID == behaviorID {
+			score += 20
+		}
+		if finding.Line > 0 && item.Line > 0 {
+			score -= minInt(absInt(finding.Line-item.Line), 20)
+		}
+		if score < 30 {
 			continue
 		}
 		return true

@@ -744,11 +744,12 @@ func TestCollectReusableThreads_FiltersIgnored(t *testing.T) {
 func TestMatchReusableThread_SameFileSeverityAndSimilarMessage(t *testing.T) {
 	candidates := []reusableThread{
 		{
-			DiscussionID: "d1",
-			FilePath:     "api/handler.go",
-			Line:         42,
-			Severity:     "HIGH",
-			Message:      "Missing nil check before request dereference",
+			DiscussionID:  "d1",
+			FilePath:      "api/handler.go",
+			Line:          42,
+			Severity:      "HIGH",
+			Message:       "Missing nil check before request dereference",
+			PrimarySymbol: "request",
 		},
 	}
 	grp := inlineGroup{
@@ -765,11 +766,12 @@ func TestMatchReusableThread_SameFileSeverityAndSimilarMessage(t *testing.T) {
 func TestMatchReusableThread_RejectsWeakSimilarity(t *testing.T) {
 	candidates := []reusableThread{
 		{
-			DiscussionID: "d1",
-			FilePath:     "api/handler.go",
-			Line:         42,
-			Severity:     "HIGH",
-			Message:      "Missing nil check before request dereference",
+			DiscussionID:  "d1",
+			FilePath:      "api/handler.go",
+			Line:          42,
+			Severity:      "HIGH",
+			Message:       "Missing nil check before request dereference",
+			PrimarySymbol: "request",
 		},
 	}
 	grp := inlineGroup{
