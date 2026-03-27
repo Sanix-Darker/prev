@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.23 - 2026-03-27
+
+feat: tighten review comment response style
+
+- keep default inline review comments shorter, sharper, and lower-fluff by tightening inline body shaping and capping their length more aggressively
+- keep default `prev reply` responses concise and direct, while expanding only when the latest request explicitly asks for more detail or depth
+- strip emoji characters from bot review comments and replies to keep reviewer output clean and professional
+- extend tests around inline comment shaping, reply-detail detection, reply sanitization, and prompt style selection
+- update README, WIKI, and feature documentation to describe the new terse-by-default review communication policy
+
+Full Changelog: https://github.com/sanix-darker/prev/compare/v0.0.22...v0.0.23
+
 ## v0.0.22 - 2026-03-27
 
 feat: improve review intelligence and GitLab command automation
