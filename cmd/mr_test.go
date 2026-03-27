@@ -34,9 +34,10 @@ func TestResolveMentionHandle_FixedWhenUnset(t *testing.T) {
 }
 
 func TestHasMentionCommand(t *testing.T) {
-	assert.True(t, hasMentionCommand("@prev review this", "prev", "review"))
-	assert.False(t, hasMentionCommand("@prev review this", "", "review"))
-	assert.False(t, hasMentionCommand("@someoneelse review this", "prev", "review"))
+	assert.True(t, hasMentionCommand("prev review this", "prev", "review"))
+	assert.True(t, hasMentionCommand("can prev do a review on this?", "prev", "review"))
+	assert.False(t, hasMentionCommand("prev review this", "", "review"))
+	assert.False(t, hasMentionCommand("someoneelse review this", "prev", "review"))
 }
 
 func TestInlineKey_IgnoresBody(t *testing.T) {
@@ -52,9 +53,9 @@ func TestInlineSeverityKey_IncludesSeverity(t *testing.T) {
 }
 
 func TestIsReplyRequest_OnlyExplicitReplyCommand(t *testing.T) {
-	assert.True(t, isReplyRequest("@prev reply", "prev"))
-	assert.False(t, isReplyRequest("@prev can you check this?", "prev"))
-	assert.False(t, isReplyRequest("@someoneelse reply", "prev"))
+	assert.True(t, isReplyRequest("prev reply", "prev"))
+	assert.False(t, isReplyRequest("prev can you check this?", "prev"))
+	assert.False(t, isReplyRequest("someoneelse reply", "prev"))
 }
 
 func TestConciseInlineBody(t *testing.T) {
@@ -295,12 +296,12 @@ func TestRefineInlinePositionByMessage_KeepExactAddedAnchor(t *testing.T) {
 
 func TestIsMRPaused_RespectsPauseResumeOrder(t *testing.T) {
 	notes := []vcs.MRNote{
-		{Body: "@prev pause"},
+		{Body: "prev pause"},
 		{Body: "some other note"},
 	}
 	assert.True(t, isMRPaused(notes, "prev"))
 
-	notes = append(notes, vcs.MRNote{Body: "@prev resume"})
+	notes = append(notes, vcs.MRNote{Body: "prev resume"})
 	assert.False(t, isMRPaused(notes, "prev"))
 }
 
@@ -309,14 +310,14 @@ func TestPausedDiscussions_ScopedPerThread(t *testing.T) {
 		{
 			ID: "d1",
 			Notes: []vcs.MRDiscussionNote{
-				{Body: "@prev pause"},
+				{Body: "prev pause"},
 			},
 		},
 		{
 			ID: "d2",
 			Notes: []vcs.MRDiscussionNote{
-				{Body: "@prev pause"},
-				{Body: "@prev resume"},
+				{Body: "prev pause"},
+				{Body: "prev resume"},
 			},
 		},
 	}
@@ -1141,7 +1142,7 @@ func TestBuildDiscussionConversationMessages_StripsMarkersAndMergesRoles(t *test
 	discussion := vcs.MRDiscussion{Notes: []vcs.MRDiscussionNote{
 		{Author: "prev", Body: "<!-- prev:thread -->\nFirst bot note"},
 		{Author: "prev", Body: "<!-- prev:reply -->\nSecond bot note"},
-		{Author: "alice", Body: "@prev reply\nCan you clarify the risk?"},
+		{Author: "alice", Body: "prev reply\nCan you clarify the risk?"},
 	}}
 
 	msgs := buildDiscussionConversationMessages(discussion, "prev")

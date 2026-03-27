@@ -23,7 +23,7 @@ Supports multiple AI providers: **OpenAI**, **Anthropic (Claude)**, **Azure Open
 | Thread continuity (reuse threads across pushes) | Yes | Partial | Yes | No | No |
 | Duplicate-thread suppression on subsequent pushes | Yes | Partial | Partial | No | Rare |
 | Resolved-thread awareness (ignore resolved discussions) | Yes | Partial | Partial | No | Rare |
-| Fixed thread commands via MR comments (`@prev ...`) | Yes | No | No | No | No |
+| Fixed thread commands via MR comments (`prev ...`) | Yes | No | No | No | No |
 | Auto-discover repo guidelines (CLAUDE.md, AGENTS.md, copilot-instructions) | Yes | No | Partial | No | No |
 | Strictness levels (strict/normal/lenient) | Yes | Partial | Yes | No | Rare |
 | AI fix prompt blocks in inline comments | Yes | Yes | Yes | No | No |
@@ -360,13 +360,13 @@ prev memory reset --yes
 
 #### MR Thread Commands
 
-MR comments can control bot behavior using the configured mention handle. By default this is `@prev`; override it with `review.mention_handle` in config or `PREV_MENTION_HANDLE`.
+MR comments can control bot behavior using the configured mention handle. By default this is `prev`; override it with `review.mention_handle` in config or `PREV_MENTION_HANDLE`.
 
-- `@prev pause`: pause reviews for the MR/thread
-- `@prev resume`: resume paused MR/thread reviews
-- `@prev review`: force review processing for that thread
-- `@prev summary`: post one top-level summary note (idempotent)
-- `@prev reply`: bot posts a thread reply
+- `prev pause`: pause reviews for the MR/thread
+- `prev resume`: resume paused MR/thread reviews
+- `prev review`: force review processing for that thread
+- `prev summary`: post one top-level summary note (idempotent)
+- `prev reply`: bot posts a thread reply
 
 Inline continuity behavior:
 

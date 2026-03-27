@@ -68,7 +68,7 @@ This document is the source-of-truth for `prev` runtime configuration as impleme
 | `max_characters_per_key_point` | int | `100` | none | none | output shaping |
 | `explain` | bool | `false` | none | none | output shaping |
 
-MR thread commands default to `@prev` and can be customized with `review.mention_handle` or `PREV_MENTION_HANDLE`.
+MR thread commands default to `prev` and can be customized with `review.mention_handle` or `PREV_MENTION_HANDLE`.
 
 ## Review Continuity
 
