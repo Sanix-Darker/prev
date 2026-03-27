@@ -491,6 +491,14 @@ func TestBuildInlineCommentBody_PreservesSuggestionPadding(t *testing.T) {
 	assert.Contains(t, body, "```suggestion\n    $value = trim($value);\n\treturn $value;\n```")
 }
 
+func TestBuildCollapsibleFixPrompt_RendersDetailsBlock(t *testing.T) {
+	body := buildCollapsibleFixPrompt("line one\nline two")
+	assert.Contains(t, body, "<details>")
+	assert.Contains(t, body, "<summary>AI agent fix prompt</summary>")
+	assert.Contains(t, body, "```text\nline one\nline two\n```")
+	assert.Contains(t, body, "</details>")
+}
+
 func TestRebaseSuggestionIndentation_RebasesToAnchor(t *testing.T) {
 	anchor := "        $title = trim($payload['title'] ?? '');"
 	suggestion := "  if ($title === '') {\n      $title = 'Untitled';\n  }"

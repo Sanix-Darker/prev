@@ -504,7 +504,7 @@ func newMRReviewCmd() *cobra.Command {
 					alignedSuggestion := rebaseSuggestionIndentation(grp.Suggestion, anchorContent)
 					body := buildInlineCommentBody(grp.Severity, grp.Message, alignedSuggestion, vcsProvider.FormatSuggestionBlock)
 					if fp := buildAgentFixPrompt(grp, fixPromptMode); fp != "" {
-						body += "\n\nAI agent fix prompt:\n```text\n" + fp + "\n```"
+						body += "\n\n" + buildCollapsibleFixPrompt(fp)
 					}
 					body += "\n\n" + prevThreadMarker
 					key := inlineKey(grp.FilePath, grp.NewLine, body)
@@ -1803,6 +1803,14 @@ func buildInlineCommentBody(
 		body += "\n\nSuggested patch:\n" + formatSuggestion(suggestion)
 	}
 	return body
+}
+
+func buildCollapsibleFixPrompt(prompt string) string {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return ""
+	}
+	return "<details>\n<summary>AI agent fix prompt</summary>\n\n```text\n" + prompt + "\n```\n</details>"
 }
 
 func normalizeSuggestion(s string) string {
