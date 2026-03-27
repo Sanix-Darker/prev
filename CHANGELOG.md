@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.21 - 2026-03-27
+
+improve review command handling and comment-driven automation
+
+- switch MR discussion commands from host-style mentions to plain `prev` keyword detection to avoid username conflicts across providers
+- trigger the GitHub review workflow on pull request updates, top-level PR comments, and inline review-comment replies so `prev reply` and `prev summary` can rerun review automatically
+- render AI agent fix prompts in inline review comments as collapsible sections and widen the bundled GitHub review config so automated runs surface higher-signal findings
+- document cross-platform command behavior for GitHub and GitLab, including GitLab rerun requirements for discussion-command processing
+- add a README table for all AI providers supported by `prev`
+- update dependencies: `golang.org/x/term` `0.40.0` -> `0.41.0`
+
+Full Changelog: https://github.com/sanix-darker/prev/compare/v0.0.20...v0.0.21
+
 ## v0.0.20 - 2026-03-27
 
 feat: preserve review context across AI calls and add configurable reviewer controls
