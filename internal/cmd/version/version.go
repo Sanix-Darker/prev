@@ -13,7 +13,7 @@ var (
 )
 
 // GoVersion returns the version of the go runtime used to compile the binary
-var goVersion = runtime.Version()
+var goVersion = runtime.GOOS
 
 // OsArch returns the os and arch used to build the binary
 var osArch = fmt.Sprintf("%s %s", runtime.GOOS, runtime.GOARCH)
@@ -31,5 +31,5 @@ OS / Arch : %s
 
 // Print the current version
 func Print() {
-	fmt.Println(generateOutput()
+	fmt.Println(generateOutput())
 }

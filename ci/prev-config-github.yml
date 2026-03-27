@@ -22,6 +22,7 @@ review:
   structured_output: true
   incremental: false
   inline_only: false
+  fix_prompt: always
 
 debug: false
 stream: false
