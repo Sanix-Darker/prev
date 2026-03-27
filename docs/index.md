@@ -7,7 +7,7 @@
   AI-powered code review CLI for diffs, commits, branches, and merge/pull requests.
 </p>
 
-`prev` is a Go CLI focused on practical AI-assisted code review with multi-provider support, MR/PR integrations, persistent review memory, and configurable review policies.
+`prev` is a Go CLI focused on practical AI-assisted code review with multi-provider support, MR/PR integrations, persistent review memory, configurable review policies, and logical conversation continuity across related review calls.
 
 Start with:
 
@@ -15,3 +15,5 @@ Start with:
 - `docs/user-guide/getting-started.md` for install options
 - `docs/prev/features.md` for current capability overview
 - `WIKI.md` for runtime configuration reference
+
+- `docs/prev/binary-size-audit.md` for the current dependency and binary-size audit

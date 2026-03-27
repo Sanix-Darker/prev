@@ -74,6 +74,14 @@ Primary commands:
 - `internal/handlers/commit_handler_test.go`
 - `internal/provider/openai/openai_test.go` (stream path verifies provider client usage)
 
+### Context Propagation Hardening
+- Request context now flows from Cobra commands into MR extraction, branch review, AI bridge helpers, and GitLab/GitHub VCS requests.
+- Review cancellation and timeout boundaries now reach provider and VCS HTTP calls instead of being replaced by nested `context.Background()` calls.
+
+### Conversation Continuity Hardening
+- Branch walkthrough and detailed review use shared logical conversation history.
+- MR re-review, inline finding recovery, and thread reply generation reuse prior message history to reduce context loss across related calls.
+
 ## 5) Invariants to Preserve
 
 1. Do not break inline anchor correctness for MR comments.
@@ -88,6 +96,7 @@ Primary commands:
 - `go install github.com/sanix-darker/prev@latest` failures were previously linked to version embed assets in tagged versions; verify `internal/cmd/version/*.txt` packaging in release tags.
 - GoReleaser Homebrew publication requires valid tap token/permissions; use `.goreleaser.nohomebrew.yaml` fallback when tap credentials are unavailable.
 - MR review quality depends on getting real MR hunks. Prefer `review.mr_diff_source: auto` (with repo available in CI when possible).
+- Unexpected model/provider selection is often caused by env overrides; use `prev config effective` to inspect merged runtime state before debugging prompt behavior.
 
 ## 7) Test/Validation Matrix (Minimum)
 

@@ -10,6 +10,7 @@
 ### Branch Review Pipeline
 
 - **Two-pass design**: Pass 1 generates a high-level walkthrough; Pass 2 does detailed file-by-file review using the walkthrough as context
+- **Conversation continuity**: Walkthrough, detailed review, re-review, and reply generation reuse logical message history to reduce context loss between related AI calls
 - **File categorization**: Changes are grouped by type (tests, commands, core, docs, dependencies, ci/config)
 - **Token-aware batching**: Files are batched to stay within AI provider token limits
 - **Context enrichment**: Hunks are augmented with surrounding code lines from the target branch
@@ -20,6 +21,7 @@
 - **Inline comments**: Posts file-specific comments with severity levels directly to the MR/PR
 - **Hunk-level consolidation**: Merges multiple findings in the same changed hunk into one inline thread with key points
 - **Thread continuity**: Reuses matching unresolved discussions across pushes instead of opening duplicate threads
+- **Reply continuity**: Thread replies and top-level MR replies reuse prior discussion history before answering the newest request
 - **Summary notes**: Posts an overall review summary as a merge request note
 - **Severity filtering**: Filters inline comments based on strictness level (strict/normal/lenient)
 - **Dry-run mode**: Preview reviews locally before posting
@@ -50,6 +52,7 @@
 - **Config file**: YAML configuration at `~/.config/prev/config.yml`
 - **Per-provider settings**: API keys, models, base URLs, timeouts per provider block
 - **Environment variables**: All settings can be overridden via environment variables
+- **Effective merged view**: `prev config effective` shows the post-override runtime config for debugging provider/model surprises
 - **CLI flags**: Runtime overrides for provider, model, streaming, debug
 - **Guideline mapping**: Auto-loads repository rules from `AGENTS.md`, `CLAUDE.md`, `.claude/*.md`, and Copilot instruction files to refine review prompts
 

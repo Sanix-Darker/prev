@@ -30,6 +30,7 @@ prev branch feature-branch --repo /path/to/repo
 prev mr review my-group/my-project 42 --dry-run
 prev config init
 prev config validate
+prev config effective
 ```
 
 ## Next Reading
@@ -37,3 +38,7 @@ prev config validate
 - `README.md` for the full command surface
 - `docs/prev/features.md` for reviewer capabilities
 - `WIKI.md` for configuration reference
+
+## Configuration Sanity Check
+
+If the selected provider or model is not what you expect, run `prev config effective` before debugging prompts. It shows the merged file + env + flag state that the CLI will actually use.

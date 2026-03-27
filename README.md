@@ -126,7 +126,7 @@ prev branch feature-branch --strictness strict
 The `prev branch` command uses a **two-pass review pipeline** inspired by CodeRabbit:
 
 1. **Pass 1 -- Walkthrough**: The AI receives abbreviated diffs and diff stats for all changed files, then produces a high-level summary and a changes table.
-2. **Pass 2 -- Detailed Review**: Files are batched by token budget and sent for detailed file-by-file review. The walkthrough summary is included as context so the AI understands the broader purpose of each change.
+2. **Pass 2 -- Detailed Review**: Files are batched by token budget and sent for detailed file-by-file review. The walkthrough summary is included as context so the AI understands the broader purpose of each change. Related walkthrough and detailed-review calls reuse the same logical conversation history to reduce context loss across passes.
 
 Between the two passes, files are enriched with surrounding code context (configurable via `--context`) so the AI can see the code around each hunk, not just the raw diff.
 
@@ -248,7 +248,21 @@ prev mr review my-group/my-project 42 --provider anthropic
 
 # Control inline comment filtering
 prev mr review my-group/my-project 42 --strictness strict
+
+# Inspect the fully resolved provider/model/config if behavior surprises you
+prev config effective
 ```
+
+#### Review Continuity
+
+MR review now keeps a logical conversation history across related AI calls:
+
+- walkthrough -> detailed review batches
+- re-review passes in `review.passes`
+- inline finding recovery
+- thread replies and top-level reply generation
+
+This continuity is provider-agnostic. When a provider exposes a native response ID it is retained inside the logical conversation, but `prev` does not require provider-specific chat IDs to preserve context.
 
 #### MR Flags
 
@@ -469,6 +483,7 @@ Additional repository resources:
 
 - `context_prev.md`: deep technical onboarding context for code agents/maintainers
 - `examples/configs/*.yml`: ready-to-use config profiles (CI, strict MR, Gemini, local ollama, minimal)
+- `docs/prev/binary-size-audit.md`: current stripped binary baseline, dependency audit, and size-reduction options
 
 Full config example:
 
@@ -591,6 +606,12 @@ Per-command flags:
 |------|----------|-------------|
 | `--repo, -r` | commit, branch | Path to git repository |
 | `--path, -p` | commit, branch | Filter diff to specific file paths |
+
+### Binary Size Notes
+
+A stripped local build using `go build -trimpath -ldflags='-s -w' -o /tmp/prev-audit ./` currently produces a binary around `7.4M` on Linux amd64. There are no obvious dead production dependencies to remove without changing behavior. The next meaningful reductions come from feature tradeoffs such as optional clipboard support, minimal config/output profiles, or replacing Cobra/pflag with a smaller custom CLI layer.
+
+See `docs/prev/binary-size-audit.md` for the current audit and recommended directions.
 
 ### Development
 

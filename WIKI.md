@@ -70,6 +70,17 @@ This document is the source-of-truth for `prev` runtime configuration as impleme
 
 MR thread commands default to `@prev` and can be customized with `review.mention_handle` or `PREV_MENTION_HANDLE`.
 
+## Review Continuity
+
+`prev` keeps logical conversation continuity across related AI calls inside one review flow. This applies to:
+
+- branch walkthrough -> detailed review
+- MR re-review passes (`review.passes`)
+- inline finding recovery after markdown fallback
+- thread replies and top-level reply generation
+
+This continuity is provider-agnostic and survives even when the provider abstraction does not expose a reusable native `chat_id`.
+
 ### MR Review Memory
 
 These settings are persisted in config and can still be overridden per run with CLI flags.
@@ -184,6 +195,26 @@ Examples:
   - `anthropic`: `api_key`
   - `azure`: `api_key`, `base_url`, `model`
   - other providers: `base_url`
+
+## Model Resolution Debugging
+
+If the active model or provider is not what you expect, inspect the merged runtime view with:
+
+```bash
+prev config effective
+```
+
+This is the quickest way to spot env overrides such as `OPENAI_API_MODEL`, `PREV_PROVIDER`, or per-provider config values.
+
+## Binary Size Audit
+
+A stripped Linux amd64 build from the current tree is about `7.4M` using:
+
+```bash
+go build -trimpath -ldflags='-s -w'
+```
+
+There are no obvious dead production dependencies in the current graph. Real size reductions now come from feature tradeoffs, not `go.mod` cleanup. See `docs/prev/binary-size-audit.md` for the dependency-by-dependency audit.
 
 ## Common CI Recommendation
 
