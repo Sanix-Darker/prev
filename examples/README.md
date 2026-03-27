@@ -18,6 +18,7 @@ These files are documentation and operational examples only. They are not embedd
 - `ci/gitlab-ci.yml`: GitLab pipeline job for MR review
 - `ci/github-actions-review.yml`: GitHub Actions workflow for PR review
 - `../.github/workflows/prev-review.yml`: repository workflow running prev on PRs
+- `hooks/gitlab-note-trigger/main.go`: example webhook receiver for immediate `prev ...` note handling on GitLab
 
 ## Usage
 

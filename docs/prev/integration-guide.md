@@ -44,6 +44,25 @@ Do not use `@prev`; the command parser now looks for the plain handle keyword in
 
 Important: GitLab merge request pipelines typically run on MR events, not on discussion comments. That means a `prev reply` or `prev summary` note in GitLab is understood by the CLI, but it will only be processed when your GitLab automation runs `prev mr review` again. If you want immediate reaction to discussion commands, add webhook-triggered or note-triggered pipeline automation in your GitLab setup.
 
+### Optional GitLab Note Webhook Trigger
+
+This repository now includes a runnable example note-hook receiver at [examples/hooks/gitlab-note-trigger/main.go](/home/dk/github/prev/examples/hooks/gitlab-note-trigger/main.go).
+
+It listens for GitLab `Note Hook` events, detects plain `prev ...` commands on merge request notes, and then runs:
+
+```bash
+prev mr review <project-path> <mr-iid> --vcs gitlab
+```
+
+The parsing logic is covered by tests in [hook_test.go](/home/dk/github/prev/internal/hooks/gitlabnote/hook_test.go).
+
+Minimal setup:
+
+1. Run the example behind a small internal endpoint.
+2. Set `PREV_GITLAB_NOTE_HOOK_SECRET` and the normal `prev` provider/VCS env vars.
+3. Add a GitLab project webhook for **Note events** pointing to `/gitlab/note`.
+4. Keep your existing MR pipeline too; the webhook path is for immediate command reaction, not a replacement for your normal review runs.
+
 ## GitHub Actions Integration
 
 The repository workflow in [.github/workflows/prev-review.yml](/home/dk/github/prev/.github/workflows/prev-review.yml) listens to:

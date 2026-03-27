@@ -20,10 +20,44 @@
 
 Main gaps vs advanced code-review agents:
 
-1. No native changed-symbol impact graph (caller/callee fan-out).
-2. No first-party concurrency/race pre-check pass.
-3. No semantic dedup key beyond file/line+message fingerprints.
-4. No structured "fix-plan prompt" generation pipeline beyond inline per-finding blocks.
+1. Native changed-symbol impact graph is now implemented for Go via AST caller/callee extraction, but non-Go languages still fall back to text heuristics.
+2. Concurrency/race pre-check is implemented as a heuristic baseline; it still needs AST-backed confidence scoring.
+3. Semantic dedup and memory revalidation are implemented as keyword/symbol baselines; they are not yet language-semantic.
+4. Structured fix-plan generation is still limited to inline per-finding blocks.
+
+## Current Feature Plans
+
+### Semantic Dedup And Memory Revalidation
+
+Status: implemented baseline on March 27, 2026.
+
+- Added behavior fingerprints and primary-symbol hints to review memory entries.
+- Reuse prior memory entries when findings are paraphrased but semantically close in the same file.
+- Revalidate historical memory against changed files, changed symbols, and changed hunk keywords before injecting it back into prompts.
+- Next pass: promote from keyword/symbol heuristics to AST-backed rule anchors where available.
+
+### Go Native Impact Graph
+
+Status: implemented baseline on March 27, 2026.
+
+- Go repositories now derive caller/callee relationships from AST parsing during the deterministic impact precheck.
+- Native impact reports expose inbound callers, outbound callees, and the source used to derive the impact (`go-ast` vs fallback scan).
+- Next pass: add package-qualified symbol identity and method-receiver disambiguation.
+
+### Memory-Aware Validation Loop
+
+Status: implemented baseline on March 27, 2026.
+
+- Historical open and ignored findings are re-scored against the current diff before being injected into prompts.
+- `prev review` already clears thread-level ignore state immediately, which now feeds the same revalidation path.
+- Next pass: teach the loop to downrank or expire stale open findings with repeated no-evidence runs.
+
+### GitLab Note-Triggered Reaction
+
+Status: implemented as a tested example on March 27, 2026.
+
+- Added a reusable GitLab note-hook parser and example webhook receiver that runs `prev mr review` on merge-request note commands.
+- Next pass: decide whether to productize this as a first-party `prev hook` command or keep it as an example deployment pattern.
 
 ## Native Implementation Plan
 
