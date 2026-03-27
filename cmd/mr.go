@@ -118,7 +118,7 @@ func newMRReviewCmd() *cobra.Command {
 				0,
 			)
 			if maxComments < 0 {
-				maxComments = 0
+				maxComments = 1000
 			}
 			reviewPasses := resolveMRIntSetting(
 				cmd, "review-passes", conf,

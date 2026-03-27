@@ -31,5 +31,5 @@ OS / Arch : %s
 
 // Print the current version
 func Print() {
-	fmt.Println(generateOutput())
+	fmt.Println(generateOutput()
 }
