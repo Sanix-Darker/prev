@@ -61,8 +61,8 @@ func TestDetectNativeConcurrencySignals(t *testing.T) {
 
 func TestBuildNativeImpactReport(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main\nfunc Run(){ ProcessOrder(); validateOrder() }\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.go"), []byte("package main\nfunc X(){ ProcessOrder() }\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main\nfunc ProcessOrder(){ validateOrder(); publishEvent() }\nfunc Run(){ ProcessOrder() }\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.go"), []byte("package main\nfunc Handle(){ ProcessOrder() }\n"), 0o644))
 
 	changes := []diffparse.FileChange{
 		{
@@ -83,4 +83,23 @@ func TestBuildNativeImpactReport(t *testing.T) {
 	assert.Contains(t, out, "Native impact precheck")
 	assert.Contains(t, out, "ProcessOrder")
 	assert.Contains(t, out, "refs=")
+	assert.Contains(t, out, "callers=Handle, Run")
+	assert.Contains(t, out, "callees=publishEvent, validateOrder")
+	assert.Contains(t, out, "source=go-ast")
+}
+
+func TestScanGoSymbolImpact_BuildsCallerAndCalleeGraph(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "service.go"), []byte("package main\nfunc ProcessOrder(){ validateOrder(); publishEvent() }\nfunc Run(){ ProcessOrder() }\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "handler.go"), []byte("package main\nfunc Handle(){ ProcessOrder() }\n"), 0o644))
+
+	impact := scanGoSymbolImpact(dir, []string{"ProcessOrder"}, map[string]struct{}{"service.go": {}})
+	entry := impact["ProcessOrder"]
+	assert.GreaterOrEqual(t, entry.References, 3)
+	assert.Equal(t, "go-ast", entry.Source)
+	assert.Contains(t, entry.InboundCallers, "Handle")
+	assert.Contains(t, entry.InboundCallers, "Run")
+	assert.Contains(t, entry.OutboundCallees, "publishEvent")
+	assert.Contains(t, entry.OutboundCallees, "validateOrder")
+	assert.GreaterOrEqual(t, entry.ChangedHits, 1)
 }

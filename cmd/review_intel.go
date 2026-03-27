@@ -3,6 +3,9 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,10 +16,13 @@ import (
 )
 
 type symbolImpact struct {
-	Symbol      string
-	References  int
-	ChangedHits int
-	Files       map[string]int
+	Symbol          string
+	References      int
+	ChangedHits     int
+	Files           map[string]int
+	InboundCallers  []string
+	OutboundCallees []string
+	Source          string
 }
 
 var (
@@ -79,7 +85,19 @@ func buildNativeImpactReport(changes []diffparse.FileChange, repoPath string, ma
 		for _, s := range symbols {
 			if im, ok := impact[s]; ok {
 				top := topImpactFiles(im.Files, 3)
-				lines = append(lines, fmt.Sprintf("- `%s`: refs=%d changed_refs=%d top_files=%s", s, im.References, im.ChangedHits, top))
+				callers := "none"
+				if len(im.InboundCallers) > 0 {
+					callers = strings.Join(im.InboundCallers, ", ")
+				}
+				callees := "none"
+				if len(im.OutboundCallees) > 0 {
+					callees = strings.Join(im.OutboundCallees, ", ")
+				}
+				source := im.Source
+				if source == "" {
+					source = "text-scan"
+				}
+				lines = append(lines, fmt.Sprintf("- `%s`: refs=%d changed_refs=%d callers=%s callees=%s top_files=%s source=%s", s, im.References, im.ChangedHits, callers, callees, top, source))
 				continue
 			}
 			lines = append(lines, fmt.Sprintf("- `%s`: refs=unknown (repo scan unavailable)", s))
@@ -178,6 +196,7 @@ func scanSymbolImpact(repoPath string, symbols []string, changedPaths map[string
 			Files:  map[string]int{},
 		}
 	}
+	mergeSymbolImpact(imp, scanGoSymbolImpact(repoPath, symbols, changedPaths))
 
 	scanned := 0
 	_ = filepath.WalkDir(repoPath, func(path string, d os.DirEntry, err error) error {
@@ -204,6 +223,9 @@ func scanSymbolImpact(repoPath string, symbols []string, changedPaths map[string
 		if !isImpactTextFile(rel) {
 			return nil
 		}
+		if strings.EqualFold(filepath.Ext(rel), ".go") {
+			return nil
+		}
 		scanned++
 		counts := scanSymbolCountsInFile(path, symbols)
 		if len(counts) == 0 {
@@ -221,6 +243,161 @@ func scanSymbolImpact(repoPath string, symbols []string, changedPaths map[string
 		return nil
 	})
 	return imp
+}
+
+func mergeSymbolImpact(dst, src map[string]symbolImpact) {
+	for sym, item := range src {
+		current := dst[sym]
+		current.Symbol = sym
+		if current.Files == nil {
+			current.Files = map[string]int{}
+		}
+		current.References += item.References
+		current.ChangedHits += item.ChangedHits
+		for path, count := range item.Files {
+			current.Files[path] += count
+		}
+		current.InboundCallers = mergeSortedUniqueStrings(current.InboundCallers, item.InboundCallers)
+		current.OutboundCallees = mergeSortedUniqueStrings(current.OutboundCallees, item.OutboundCallees)
+		if item.Source != "" {
+			current.Source = item.Source
+		}
+		dst[sym] = current
+	}
+}
+
+func mergeSortedUniqueStrings(a, b []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(a)+len(b))
+	for _, item := range append(a, b...) {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		key := strings.ToLower(item)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, item)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func scanGoSymbolImpact(repoPath string, symbols []string, changedPaths map[string]struct{}) map[string]symbolImpact {
+	targets := map[string]struct{}{}
+	for _, sym := range symbols {
+		targets[sym] = struct{}{}
+	}
+	type funcInfo struct {
+		name    string
+		file    string
+		callees []string
+	}
+	var funcs []funcInfo
+	_ = filepath.WalkDir(repoPath, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Ext(path) != ".go" {
+			return nil
+		}
+		rel, rerr := filepath.Rel(repoPath, path)
+		if rerr != nil {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		fset := token.NewFileSet()
+		file, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if perr != nil {
+			return nil
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Name == nil {
+				continue
+			}
+			name := strings.TrimSpace(fn.Name.Name)
+			if name == "" {
+				continue
+			}
+			info := funcInfo{name: name, file: rel}
+			if fn.Body != nil {
+				ast.Inspect(fn.Body, func(n ast.Node) bool {
+					call, ok := n.(*ast.CallExpr)
+					if !ok {
+						return true
+					}
+					if callee := callIdentName(call.Fun); callee != "" {
+						info.callees = append(info.callees, callee)
+					}
+					return true
+				})
+			}
+			funcs = append(funcs, info)
+		}
+		return nil
+	})
+
+	impact := make(map[string]symbolImpact, len(symbols))
+	for _, sym := range symbols {
+		impact[sym] = symbolImpact{
+			Symbol: sym,
+			Files:  map[string]int{},
+			Source: "go-ast",
+		}
+	}
+	callers := map[string][]string{}
+	callees := map[string][]string{}
+	for _, fn := range funcs {
+		if _, ok := targets[fn.name]; ok {
+			entry := impact[fn.name]
+			entry.References++
+			entry.Files[fn.file]++
+			if _, changed := changedPaths[fn.file]; changed {
+				entry.ChangedHits++
+			}
+			impact[fn.name] = entry
+		}
+		seenCallees := map[string]struct{}{}
+		for _, callee := range fn.callees {
+			if _, ok := targets[callee]; ok {
+				entry := impact[callee]
+				entry.References++
+				entry.Files[fn.file]++
+				if _, changed := changedPaths[fn.file]; changed {
+					entry.ChangedHits++
+				}
+				impact[callee] = entry
+				callers[callee] = append(callers[callee], fn.name)
+			}
+			if _, ok := targets[fn.name]; ok {
+				if _, dup := seenCallees[callee]; dup {
+					continue
+				}
+				seenCallees[callee] = struct{}{}
+				callees[fn.name] = append(callees[fn.name], callee)
+			}
+		}
+	}
+	for sym, entry := range impact {
+		entry.InboundCallers = mergeSortedUniqueStrings(nil, callers[sym])
+		entry.OutboundCallees = mergeSortedUniqueStrings(nil, callees[sym])
+		impact[sym] = entry
+	}
+	return impact
+}
+
+func callIdentName(expr ast.Expr) string {
+	switch v := expr.(type) {
+	case *ast.Ident:
+		return strings.TrimSpace(v.Name)
+	case *ast.SelectorExpr:
+		if v.Sel == nil {
+			return ""
+		}
+		return strings.TrimSpace(v.Sel.Name)
+	default:
+		return ""
+	}
 }
 
 func isImpactTextFile(path string) bool {
