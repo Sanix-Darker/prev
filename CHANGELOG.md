@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.22 - 2026-03-27
+
+feat: improve review intelligence and GitLab command automation
+
+- add thread-level `prev ignore` support with persisted ignored-state tracking, immediate `prev review` unignore handling, and stronger tests around thread command state
+- add semantic review-memory behavior fingerprints and primary-symbol hints so paraphrased findings can be revalidated and deduplicated more consistently across reruns
+- revalidate historical open and ignored findings against current changed files, changed symbols, and changed hunk keywords before injecting them back into review prompts
+- upgrade the deterministic native impact precheck for Go repositories with AST-derived caller/callee graphs while keeping text-scan fallback for other languages
+- add a tested GitLab note-hook parser plus a runnable webhook receiver example for immediate `prev ...` merge-request note handling
+- refresh integration docs, examples, and the review-intelligence roadmap to document the new command flows and current implementation baselines
+
+Full Changelog: https://github.com/sanix-darker/prev/compare/v0.0.21...v0.0.22
+
 ## v0.0.21 - 2026-03-27
 
 improve review command handling and comment-driven automation
