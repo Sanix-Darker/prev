@@ -221,7 +221,7 @@ func newMRReviewCmd() *cobra.Command {
 				os.Exit(1)
 			}
 			review, err := handlers.ExtractMRHandlerWithOptions(
-				vcsProvider, projectID, mrIID, strictness,
+				cmd.Context(), vcsProvider, projectID, mrIID, strictness,
 				handlers.MRExtractOptions{
 					DiffSource: mrDiffSource,
 					RepoPath:   repoPath,
@@ -234,11 +234,11 @@ func newMRReviewCmd() *cobra.Command {
 			fmt.Println(detectVCSContextStatus(vcsProvider.Info().Name, exec.LookPath, os.Getenv))
 			mentionHandle := resolveMentionHandle(conf)
 
-			discussions, err := vcsProvider.ListMRDiscussions(projectID, mrIID)
+			discussions, err := vcsProvider.ListMRDiscussions(cmd.Context(), projectID, mrIID)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to fetch MR discussions: %v\n", err)
 			}
-			notes, err := vcsProvider.ListMRNotes(projectID, mrIID)
+			notes, err := vcsProvider.ListMRNotes(cmd.Context(), projectID, mrIID)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to fetch MR notes: %v\n", err)
 			}
@@ -356,7 +356,7 @@ func newMRReviewCmd() *cobra.Command {
 
 			if !inlineOnly {
 				replyCount := processReplyCommands(
-					vcsProvider,
+					cmd.Context(), vcsProvider,
 					p,
 					projectID,
 					mrIID,
@@ -369,7 +369,7 @@ func newMRReviewCmd() *cobra.Command {
 					fmt.Printf("Posted %d thread replies.\n", replyCount)
 				}
 				noteReplyCount := processNoteReplyCommands(
-					vcsProvider,
+					cmd.Context(), vcsProvider,
 					p,
 					projectID,
 					mrIID,
@@ -383,7 +383,7 @@ func newMRReviewCmd() *cobra.Command {
 				}
 			}
 
-			reviewContent, err := runReviewPasses(p, review.Prompt, reviewPasses)
+			reviewContent, err := runReviewPasses(cmd.Context(), p, review.Prompt, reviewPasses)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error from AI provider: %v\n", err)
 				os.Exit(1)
@@ -432,7 +432,7 @@ func newMRReviewCmd() *cobra.Command {
 					fmt.Println("\nSummary already posted; skipping duplicate summary note.")
 				} else {
 					summaryBody := fmt.Sprintf("%s\n## AI Code Review\n\n%s", prevSummaryMarker, reviewContent)
-					if err := vcsProvider.PostSummaryNote(projectID, mrIID, summaryBody); err != nil {
+					if err := vcsProvider.PostSummaryNote(cmd.Context(), projectID, mrIID, summaryBody); err != nil {
 						fmt.Fprintf(os.Stderr, "Warning: failed to post summary note: %v\n", err)
 					} else {
 						fmt.Println("\nPosted summary comment to MR.")
@@ -449,7 +449,7 @@ func newMRReviewCmd() *cobra.Command {
 			// Post inline comments (if not summary-only)
 			if !summaryOnly && review.MR.DiffRefs.BaseSHA != "" {
 				if !inlineOnly {
-					carryPosted := postCarryOverReminders(vcsProvider, projectID, mrIID, discussions, carryOver, pausedThreads)
+					carryPosted := postCarryOverReminders(cmd.Context(), vcsProvider, projectID, mrIID, discussions, carryOver, pausedThreads)
 					if carryPosted > 0 {
 						fmt.Printf("Posted %d carry-over reminders.\n", carryPosted)
 					}
@@ -527,7 +527,7 @@ func newMRReviewCmd() *cobra.Command {
 								"%s\nRevalidated on current diff near `%s:%d`.\n\n%s",
 								prevReuseMarker, grp.FilePath, grp.NewLine, body,
 							)
-							if err := vcsProvider.ReplyToMRDiscussion(projectID, mrIID, r.DiscussionID, reply); err == nil {
+							if err := vcsProvider.ReplyToMRDiscussion(cmd.Context(), projectID, mrIID, r.DiscussionID, reply); err == nil {
 								postedInline++
 								reusedInline++
 								reusedDiscussionIDs[r.DiscussionID] = struct{}{}
@@ -538,7 +538,7 @@ func newMRReviewCmd() *cobra.Command {
 						}
 					}
 					err := vcsProvider.PostInlineComment(
-						projectID, mrIID,
+						cmd.Context(), projectID, mrIID,
 						review.MR.DiffRefs,
 						vcs.InlineComment{
 							FilePath: grp.FilePath,
@@ -574,7 +574,7 @@ func newMRReviewCmd() *cobra.Command {
 				if len(unplaced) > 0 && !inlineOnly {
 					sort.Strings(unplaced)
 					note := "## Unplaced Inline Findings\n\nGitLab rejected precise inline placement for these findings. They are kept here for visibility:\n\n" + strings.Join(unplaced, "\n")
-					if err := vcsProvider.PostSummaryNote(projectID, mrIID, note); err != nil {
+					if err := vcsProvider.PostSummaryNote(cmd.Context(), projectID, mrIID, note); err != nil {
 						fmt.Fprintf(os.Stderr, "Warning: failed to post unplaced findings note: %v\n", err)
 					}
 				}
@@ -585,7 +585,7 @@ func newMRReviewCmd() *cobra.Command {
 					HeadSHA:  review.MR.DiffRefs.HeadSHA,
 					FileSigs: currentSignatures,
 				}
-				if err := postReviewBaseline(vcsProvider, projectID, mrIID, baseline); err != nil {
+				if err := postReviewBaseline(cmd.Context(), vcsProvider, projectID, mrIID, baseline); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: failed to post incremental baseline marker: %v\n", err)
 				}
 			}
@@ -1055,6 +1055,7 @@ func appendCarryOverGuidelines(guidelines string, carry []carryOverFinding) stri
 }
 
 func postCarryOverReminders(
+	ctx context.Context,
 	vcsProvider vcs.VCSProvider,
 	projectID string,
 	mrIID int64,
@@ -1090,7 +1091,7 @@ func postCarryOverReminders(
 			"%s\nUnresolved prior finding is still present in this revision at `%s:%d` [%s]. Please address this before lower-priority items.",
 			prevCarryOverMarker, c.FilePath, c.Line, c.Severity,
 		)
-		if err := vcsProvider.ReplyToMRDiscussion(projectID, mrIID, c.DiscussionID, body); err != nil {
+		if err := vcsProvider.ReplyToMRDiscussion(ctx, projectID, mrIID, c.DiscussionID, body); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to post carry-over reminder in discussion %s: %v\n", c.DiscussionID, err)
 			continue
 		}
@@ -1101,6 +1102,7 @@ func postCarryOverReminders(
 }
 
 func processReplyCommands(
+	ctx context.Context,
 	vcsProvider vcs.VCSProvider,
 	ai provider.AIProvider,
 	projectID string,
@@ -1135,7 +1137,7 @@ func processReplyCommands(
 			SystemPrompt: "You are an expert code reviewer replying in a merge request discussion. Preserve thread continuity, answer the latest request directly, and tie your reply to the available hunk context.",
 			Messages:     buildDiscussionConversationMessages(d, mentionHandle),
 		})
-		content, err := completeConversationPrompt(conv, prompt)
+		content, err := completeConversationPrompt(ctx, conv, prompt)
 		if err != nil || strings.TrimSpace(content) == "" {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to generate reply for discussion %s: %v\n", d.ID, err)
@@ -1143,7 +1145,7 @@ func processReplyCommands(
 			continue
 		}
 		body := strings.TrimSpace(content) + "\n\n" + prevReplyMarker
-		if err := vcsProvider.ReplyToMRDiscussion(projectID, mrIID, d.ID, body); err != nil {
+		if err := vcsProvider.ReplyToMRDiscussion(ctx, projectID, mrIID, d.ID, body); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to post reply in discussion %s: %v\n", d.ID, err)
 			continue
 		}
@@ -1208,6 +1210,7 @@ func sanitizeConversationBody(body string) string {
 }
 
 func processNoteReplyCommands(
+	ctx context.Context,
 	vcsProvider vcs.VCSProvider,
 	ai provider.AIProvider,
 	projectID string,
@@ -1241,7 +1244,7 @@ func processNoteReplyCommands(
 		conv := provider.NewConversation(ai, provider.ConversationOptions{
 			SystemPrompt: "You are an expert code reviewer replying to a merge request comment. Answer directly, stay scoped to the MR context, and avoid repeating boilerplate.",
 		})
-		content, err := completeConversationPrompt(conv, prompt)
+		content, err := completeConversationPrompt(ctx, conv, prompt)
 		if err != nil || strings.TrimSpace(content) == "" {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to generate reply for note %d: %v\n", note.ID, err)
@@ -1253,7 +1256,7 @@ func processNoteReplyCommands(
 			fmt.Fprintf(os.Stderr, "Warning: missing diff refs; cannot post inline reply for note %d\n", note.ID)
 			continue
 		}
-		if err := vcsProvider.PostInlineComment(projectID, mrIID, mr.DiffRefs, vcs.InlineComment{
+		if err := vcsProvider.PostInlineComment(ctx, projectID, mrIID, mr.DiffRefs, vcs.InlineComment{
 			FilePath: path,
 			OldPath:  validPositionsByFile[path].oldPath,
 			NewLine:  int64(newLine),
@@ -2634,7 +2637,7 @@ func latestReviewBaseline(notes []vcs.MRNote) (reviewBaseline, bool) {
 	return reviewBaseline{}, false
 }
 
-func postReviewBaseline(vcsProvider vcs.VCSProvider, projectID string, mrIID int64, baseline reviewBaseline) error {
+func postReviewBaseline(ctx context.Context, vcsProvider vcs.VCSProvider, projectID string, mrIID int64, baseline reviewBaseline) error {
 	if strings.TrimSpace(baseline.HeadSHA) == "" {
 		return nil
 	}
@@ -2644,7 +2647,7 @@ func postReviewBaseline(vcsProvider vcs.VCSProvider, projectID string, mrIID int
 	}
 	encoded := base64.StdEncoding.EncodeToString(raw)
 	body := prevBaselinePrefix + encoded + " -->"
-	return vcsProvider.PostSummaryNote(projectID, mrIID, body)
+	return vcsProvider.PostSummaryNote(ctx, projectID, mrIID, body)
 }
 
 func isDocTextFile(path string) bool {
@@ -2897,7 +2900,7 @@ func buildMRFormattedDiffs(review *handlers.MRReview, serenaMode string, context
 	return out, nil
 }
 
-func runReviewPasses(p provider.AIProvider, basePrompt string, passes int) (string, error) {
+func runReviewPasses(ctx context.Context, p provider.AIProvider, basePrompt string, passes int) (string, error) {
 	if passes <= 0 {
 		passes = 1
 	}
@@ -2908,7 +2911,7 @@ func runReviewPasses(p provider.AIProvider, basePrompt string, passes int) (stri
 	latest := ""
 	for pass := 1; pass <= passes; pass++ {
 		fmt.Printf("Review pass %d/%d...\n", pass, passes)
-		content, err := completeConversationPrompt(conv, currentPrompt)
+		content, err := completeConversationPrompt(ctx, conv, currentPrompt)
 		if err != nil {
 			return "", err
 		}
@@ -2923,8 +2926,8 @@ func runReviewPasses(p provider.AIProvider, basePrompt string, passes int) (stri
 	return latest, nil
 }
 
-func completeConversationPrompt(conv *provider.Conversation, prompt string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+func completeConversationPrompt(parent context.Context, conv *provider.Conversation, prompt string) (string, error) {
+	ctx, cancel := context.WithTimeout(parent, 120*time.Second)
 	defer cancel()
 
 	resp, err := conv.Complete(ctx, prompt)
@@ -2946,7 +2949,7 @@ func runReviewPassesDryRun(conf config.Config, basePrompt string, passes int) {
 		model = info.DefaultModel
 	}
 	fmt.Printf("Model: provider=%s model=%s\n", info.Name, model)
-	content, err := runReviewPasses(p, basePrompt, passes)
+	content, err := runReviewPasses(context.Background(), p, basePrompt, passes)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error from AI provider: %v\n", err)
 		os.Exit(1)
@@ -2986,7 +2989,7 @@ Requirements:
 			{Role: provider.RoleAssistant, Content: priorReview},
 		},
 	})
-	content, err := completeConversationPrompt(conv, recoveryPrompt)
+	content, err := completeConversationPrompt(context.Background(), conv, recoveryPrompt)
 	if err != nil {
 		return "", err
 	}
@@ -3044,7 +3047,7 @@ func newMRDiffCmd() *cobra.Command {
 			}
 
 			review, err := handlers.ExtractMRHandlerWithOptions(
-				vcsProvider, projectID, mrIID, "normal",
+				cmd.Context(), vcsProvider, projectID, mrIID, "normal",
 				handlers.MRExtractOptions{
 					DiffSource: "auto",
 					RepoPath:   resolveMRRepoPath(),
@@ -3085,7 +3088,7 @@ func newMRListCmd() *cobra.Command {
 				os.Exit(1)
 			}
 
-			mrs, err := vcsProvider.ListOpenMRs(projectID)
+			mrs, err := vcsProvider.ListOpenMRs(cmd.Context(), projectID)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)

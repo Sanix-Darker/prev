@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"testing"
 
 	"github.com/sanix-darker/prev/internal/vcs"
@@ -15,27 +16,33 @@ type mockMRVCSProvider struct {
 }
 
 func (m *mockMRVCSProvider) Info() vcs.ProviderInfo { return vcs.ProviderInfo{Name: "mock"} }
-func (m *mockMRVCSProvider) FetchMR(string, int64) (*vcs.MergeRequest, error) {
+func (m *mockMRVCSProvider) FetchMR(context.Context, string, int64) (*vcs.MergeRequest, error) {
 	return m.mr, nil
 }
-func (m *mockMRVCSProvider) FetchMRDiffs(string, int64) ([]vcs.FileDiff, error) {
+func (m *mockMRVCSProvider) FetchMRDiffs(context.Context, string, int64) ([]vcs.FileDiff, error) {
 	return m.diffs, nil
 }
-func (m *mockMRVCSProvider) FetchMRRawDiff(string, int64) (string, error) {
+func (m *mockMRVCSProvider) FetchMRRawDiff(context.Context, string, int64) (string, error) {
 	return m.rawDiff, nil
 }
-func (m *mockMRVCSProvider) ListMRDiscussions(string, int64) ([]vcs.MRDiscussion, error) {
+func (m *mockMRVCSProvider) ListMRDiscussions(context.Context, string, int64) ([]vcs.MRDiscussion, error) {
 	return nil, nil
 }
-func (m *mockMRVCSProvider) ListMRNotes(string, int64) ([]vcs.MRNote, error) { return nil, nil }
-func (m *mockMRVCSProvider) ListOpenMRs(string) ([]*vcs.MergeRequest, error) { return nil, nil }
-func (m *mockMRVCSProvider) PostSummaryNote(string, int64, string) error     { return nil }
-func (m *mockMRVCSProvider) PostInlineComment(string, int64, vcs.DiffRefs, vcs.InlineComment) error {
+func (m *mockMRVCSProvider) ListMRNotes(context.Context, string, int64) ([]vcs.MRNote, error) {
+	return nil, nil
+}
+func (m *mockMRVCSProvider) ListOpenMRs(context.Context, string) ([]*vcs.MergeRequest, error) {
+	return nil, nil
+}
+func (m *mockMRVCSProvider) PostSummaryNote(context.Context, string, int64, string) error { return nil }
+func (m *mockMRVCSProvider) PostInlineComment(context.Context, string, int64, vcs.DiffRefs, vcs.InlineComment) error {
 	return nil
 }
-func (m *mockMRVCSProvider) ReplyToMRDiscussion(string, int64, string, string) error { return nil }
-func (m *mockMRVCSProvider) FormatSuggestionBlock(s string) string                   { return s }
-func (m *mockMRVCSProvider) Validate() error                                         { return nil }
+func (m *mockMRVCSProvider) ReplyToMRDiscussion(context.Context, string, int64, string, string) error {
+	return nil
+}
+func (m *mockMRVCSProvider) FormatSuggestionBlock(s string) string { return s }
+func (m *mockMRVCSProvider) Validate() error                       { return nil }
 
 func TestNormalizeDiffSource(t *testing.T) {
 	assert.Equal(t, "auto", normalizeDiffSource(""))
@@ -61,7 +68,7 @@ func TestExtractMRHandlerWithOptions_RawDiffPreferred(t *testing.T) {
 		},
 		rawDiff: "diff --git a/public/index.php b/public/index.php\n--- a/public/index.php\n+++ b/public/index.php\n@@ -1,1 +1,2 @@\n <?php\n+echo json_encode($x);\n",
 	}
-	got, err := ExtractMRHandlerWithOptions(provider, "grp/proj", 42, "normal", MRExtractOptions{
+	got, err := ExtractMRHandlerWithOptions(context.Background(), provider, "grp/proj", 42, "normal", MRExtractOptions{
 		DiffSource: "raw",
 	})
 	require.NoError(t, err)
@@ -82,7 +89,7 @@ func TestExtractMRHandlerWithOptions_FailsOnNoHunks(t *testing.T) {
 			{OldPath: "public/index.php", NewPath: "public/index.php", Diff: ""},
 		},
 	}
-	_, err := ExtractMRHandlerWithOptions(provider, "grp/proj", 42, "normal", MRExtractOptions{
+	_, err := ExtractMRHandlerWithOptions(context.Background(), provider, "grp/proj", 42, "normal", MRExtractOptions{
 		DiffSource: "api",
 	})
 	require.Error(t, err)

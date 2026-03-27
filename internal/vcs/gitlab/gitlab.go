@@ -52,7 +52,7 @@ func (p *Provider) Validate() error {
 	return nil
 }
 
-func (p *Provider) FetchMR(projectID string, mrIID int64) (*vcs.MergeRequest, error) {
+func (p *Provider) FetchMR(ctx context.Context, projectID string, mrIID int64) (*vcs.MergeRequest, error) {
 	var mr struct {
 		IID         int64  `json:"iid"`
 		Title       string `json:"title"`
@@ -72,7 +72,7 @@ func (p *Provider) FetchMR(projectID string, mrIID int64) (*vcs.MergeRequest, er
 	}
 
 	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d", url.PathEscape(projectID), mrIID)
-	if err := p.getJSON(context.Background(), endpoint, &mr); err != nil {
+	if err := p.getJSON(ctx, endpoint, &mr); err != nil {
 		return nil, fmt.Errorf("gitlab: failed to fetch MR !%d: %w", mrIID, err)
 	}
 
@@ -93,7 +93,7 @@ func (p *Provider) FetchMR(projectID string, mrIID int64) (*vcs.MergeRequest, er
 	}, nil
 }
 
-func (p *Provider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, error) {
+func (p *Provider) FetchMRDiffs(ctx context.Context, projectID string, mrIID int64) ([]vcs.FileDiff, error) {
 	type apiDiff struct {
 		OldPath     string `json:"old_path"`
 		NewPath     string `json:"new_path"`
@@ -111,7 +111,7 @@ func (p *Provider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, 
 		endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/diffs?per_page=100&page=%d",
 			url.PathEscape(projectID), mrIID, page)
 		var diffs []apiDiff
-		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &diffs)
+		resp, err := p.getJSONWithResponse(ctx, endpoint, &diffs)
 		if err != nil {
 			return nil, fmt.Errorf("gitlab: failed to fetch MR diffs: %w", err)
 		}
@@ -138,11 +138,11 @@ func (p *Provider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, 
 	return allDiffs, nil
 }
 
-func (p *Provider) FetchMRRawDiff(projectID string, mrIID int64) (string, error) {
+func (p *Provider) FetchMRRawDiff(ctx context.Context, projectID string, mrIID int64) (string, error) {
 	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/raw_diffs",
 		url.PathEscape(projectID), mrIID)
 
-	req, err := p.newRequest(context.Background(), http.MethodGet, endpoint, nil)
+	req, err := p.newRequest(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return "", err
 	}
@@ -165,7 +165,7 @@ func (p *Provider) FetchMRRawDiff(projectID string, mrIID int64) (string, error)
 	return strings.TrimSpace(string(raw)), nil
 }
 
-func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDiscussion, error) {
+func (p *Provider) ListMRDiscussions(ctx context.Context, projectID string, mrIID int64) ([]vcs.MRDiscussion, error) {
 	type apiNote struct {
 		ID         int64  `json:"id"`
 		Body       string `json:"body"`
@@ -190,7 +190,7 @@ func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDis
 		endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/discussions?per_page=100&page=%d",
 			url.PathEscape(projectID), mrIID, page)
 		var discussions []apiDiscussion
-		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &discussions)
+		resp, err := p.getJSONWithResponse(ctx, endpoint, &discussions)
 		if err != nil {
 			return nil, fmt.Errorf("gitlab: failed to list MR discussions: %w", err)
 		}
@@ -223,7 +223,7 @@ func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDis
 	return out, nil
 }
 
-func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, error) {
+func (p *Provider) ListMRNotes(ctx context.Context, projectID string, mrIID int64) ([]vcs.MRNote, error) {
 	type apiNote struct {
 		ID     int64  `json:"id"`
 		Body   string `json:"body"`
@@ -238,7 +238,7 @@ func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, err
 		endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/notes?per_page=100&page=%d",
 			url.PathEscape(projectID), mrIID, page)
 		var notes []apiNote
-		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &notes)
+		resp, err := p.getJSONWithResponse(ctx, endpoint, &notes)
 		if err != nil {
 			return nil, fmt.Errorf("gitlab: failed to list MR notes: %w", err)
 		}
@@ -258,7 +258,7 @@ func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, err
 	return out, nil
 }
 
-func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
+func (p *Provider) ListOpenMRs(ctx context.Context, projectID string) ([]*vcs.MergeRequest, error) {
 	type apiMR struct {
 		IID    int64  `json:"iid"`
 		Title  string `json:"title"`
@@ -274,7 +274,7 @@ func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
 	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests?state=opened&per_page=20",
 		url.PathEscape(projectID))
 	var mrs []apiMR
-	if err := p.getJSON(context.Background(), endpoint, &mrs); err != nil {
+	if err := p.getJSON(ctx, endpoint, &mrs); err != nil {
 		return nil, fmt.Errorf("gitlab: failed to list MRs: %w", err)
 	}
 
@@ -294,9 +294,9 @@ func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
 	return result, nil
 }
 
-func (p *Provider) PostSummaryNote(projectID string, mrIID int64, body string) error {
+func (p *Provider) PostSummaryNote(ctx context.Context, projectID string, mrIID int64, body string) error {
 	payload := map[string]string{"body": body}
-	if err := p.postJSON(context.Background(),
+	if err := p.postJSON(ctx,
 		fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/notes", url.PathEscape(projectID), mrIID),
 		payload,
 		nil,
@@ -306,7 +306,7 @@ func (p *Provider) PostSummaryNote(projectID string, mrIID int64, body string) e
 	return nil
 }
 
-func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.DiffRefs, comment vcs.InlineComment) error {
+func (p *Provider) PostInlineComment(ctx context.Context, projectID string, mrIID int64, refs vcs.DiffRefs, comment vcs.InlineComment) error {
 	oldPath := strings.TrimSpace(comment.OldPath)
 	if oldPath == "" {
 		oldPath = comment.FilePath
@@ -329,7 +329,7 @@ func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.Dif
 		"position": position,
 	}
 
-	if err := p.postJSON(context.Background(),
+	if err := p.postJSON(ctx,
 		fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/discussions", url.PathEscape(projectID), mrIID),
 		payload,
 		nil,
@@ -339,12 +339,12 @@ func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.Dif
 	return nil
 }
 
-func (p *Provider) ReplyToMRDiscussion(projectID string, mrIID int64, discussionID, body string) error {
+func (p *Provider) ReplyToMRDiscussion(ctx context.Context, projectID string, mrIID int64, discussionID, body string) error {
 	payload := map[string]string{"body": body}
 	endpoint := fmt.Sprintf("/api/v4/projects/%s/merge_requests/%d/discussions/%s/notes",
 		url.PathEscape(projectID), mrIID, discussionID)
 
-	if err := p.postJSON(context.Background(), endpoint, payload, nil); err != nil {
+	if err := p.postJSON(ctx, endpoint, payload, nil); err != nil {
 		return fmt.Errorf("gitlab: failed to reply to discussion %s: %w", discussionID, err)
 	}
 	return nil

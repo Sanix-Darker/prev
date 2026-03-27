@@ -94,7 +94,7 @@ func TestExtractBranchReview_Success(t *testing.T) {
 		SerenaMode:     "off",
 	}
 
-	result, err := ExtractBranchReview(mock, "feature", repoPath, "", cfg, nil)
+	result, err := ExtractBranchReview(context.Background(), mock, "feature", repoPath, "", cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -116,7 +116,7 @@ func TestExtractBranchReview_NoDiff(t *testing.T) {
 	}
 
 	// main vs main = no diff
-	_, err := ExtractBranchReview(mock, "main", repoPath, "", cfg, nil)
+	_, err := ExtractBranchReview(context.Background(), mock, "main", repoPath, "", cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no differences")
 }

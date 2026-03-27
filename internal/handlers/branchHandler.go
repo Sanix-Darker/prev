@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/sanix-darker/prev/internal/core"
@@ -40,6 +41,7 @@ func ExtractBranchHandler(
 
 // ExtractBranchReview runs the new two-pass review pipeline.
 func ExtractBranchReview(
+	ctx context.Context,
 	aiProvider provider.AIProvider,
 	branchName string,
 	repoPath string,
@@ -53,7 +55,7 @@ func ExtractBranchReview(
 
 	baseBranch := core.GetBaseBranch(repoPath)
 
-	return review.RunBranchReview(aiProvider, repoPath, branchName, baseBranch, cfg, onProgress)
+	return review.RunBranchReview(ctx, aiProvider, repoPath, branchName, baseBranch, cfg, onProgress)
 }
 
 // filterDiffByPath filters a unified diff to only include files matching the given path prefix.

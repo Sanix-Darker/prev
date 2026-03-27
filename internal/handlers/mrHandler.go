@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -23,15 +24,17 @@ type MRExtractOptions struct {
 
 // ExtractMRHandler fetches MR details and diffs, then builds a review prompt.
 func ExtractMRHandler(
+	ctx context.Context,
 	provider vcs.VCSProvider,
 	projectID string,
 	mrIID int64,
 	strictness string,
 ) (*MRReview, error) {
-	return ExtractMRHandlerWithOptions(provider, projectID, mrIID, strictness, MRExtractOptions{})
+	return ExtractMRHandlerWithOptions(ctx, provider, projectID, mrIID, strictness, MRExtractOptions{})
 }
 
 func ExtractMRHandlerWithOptions(
+	ctx context.Context,
 	provider vcs.VCSProvider,
 	projectID string,
 	mrIID int64,
@@ -39,12 +42,12 @@ func ExtractMRHandlerWithOptions(
 	opts MRExtractOptions,
 ) (*MRReview, error) {
 	// Fetch MR details
-	mr, err := provider.FetchMR(projectID, mrIID)
+	mr, err := provider.FetchMR(ctx, projectID, mrIID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch MR: %w", err)
 	}
 
-	changes, err := extractMRChanges(provider, projectID, mrIID, mr, opts)
+	changes, err := extractMRChanges(ctx, provider, projectID, mrIID, mr, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +77,7 @@ func ExtractMRHandlerWithOptions(
 }
 
 func extractMRChanges(
+	ctx context.Context,
 	provider vcs.VCSProvider,
 	projectID string,
 	mrIID int64,
@@ -100,7 +104,7 @@ func extractMRChanges(
 	}
 
 	if source == "raw" || source == "auto" {
-		raw, err := provider.FetchMRRawDiff(projectID, mrIID)
+		raw, err := provider.FetchMRRawDiff(ctx, projectID, mrIID)
 		if err == nil && strings.TrimSpace(raw) != "" {
 			changes, perr := diffparse.ParseGitDiff(raw)
 			if perr == nil {
@@ -113,7 +117,7 @@ func extractMRChanges(
 	}
 
 	// Legacy API fallback
-	mrDiffs, err := provider.FetchMRDiffs(projectID, mrIID)
+	mrDiffs, err := provider.FetchMRDiffs(ctx, projectID, mrIID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch MR diffs: %w", err)
 	}

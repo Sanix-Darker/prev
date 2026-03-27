@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -28,7 +29,7 @@ func resolveProvider(conf config.Config) (provider.AIProvider, error) {
 }
 
 // callProvider sends a prompt to the configured AI provider and prints the result.
-func callProvider(conf config.Config, prompt string) {
+func callProvider(ctx context.Context, conf config.Config, prompt string) {
 	p, err := resolveProvider(conf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error resolving provider: %v\n", err)
@@ -43,14 +44,15 @@ func callProvider(conf config.Config, prompt string) {
 	}
 
 	if conf.Stream {
-		streamCallProvider(conf, p, prompt)
+		streamCallProvider(ctx, conf, p, prompt)
 	} else {
-		blockingCallProvider(conf, p, prompt)
+		blockingCallProvider(ctx, conf, p, prompt)
 	}
 }
 
-func blockingCallProvider(conf config.Config, p provider.AIProvider, prompt string) {
-	id, choices, err := provider.SimpleComplete(
+func blockingCallProvider(ctx context.Context, conf config.Config, p provider.AIProvider, prompt string) {
+	id, choices, err := provider.SimpleCompleteWithContext(
+		ctx,
 		p,
 		"You are a helpful assistant and source code reviewer.",
 		"You are code reviewer for a project",
@@ -70,8 +72,8 @@ func blockingCallProvider(conf config.Config, p provider.AIProvider, prompt stri
 	}
 }
 
-func streamCallProvider(conf config.Config, p provider.AIProvider, prompt string) {
-	provider.ApiCallWithProvider(conf.Debug, p, prompt)
+func streamCallProvider(ctx context.Context, conf config.Config, p provider.AIProvider, prompt string) {
+	provider.ApiCallWithProviderContext(ctx, conf.Debug, p, prompt)
 }
 
 func resolvedModelForLog(conf config.Config, fallback string) string {

@@ -37,7 +37,7 @@ func newAIListCmd() *cobra.Command {
 					continue
 				}
 				info := p.Info()
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Second)
 				status := "configured"
 				if err := p.Validate(ctx); err != nil {
 					status = "missing credentials"

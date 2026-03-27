@@ -1,17 +1,19 @@
 package vcs
 
+import "context"
+
 // VCSProvider abstracts version control system operations (GitLab, GitHub, etc.).
 type VCSProvider interface {
 	Info() ProviderInfo
-	FetchMR(projectID string, mrIID int64) (*MergeRequest, error)
-	FetchMRDiffs(projectID string, mrIID int64) ([]FileDiff, error)
-	FetchMRRawDiff(projectID string, mrIID int64) (string, error)
-	ListMRDiscussions(projectID string, mrIID int64) ([]MRDiscussion, error)
-	ListMRNotes(projectID string, mrIID int64) ([]MRNote, error)
-	ListOpenMRs(projectID string) ([]*MergeRequest, error)
-	PostSummaryNote(projectID string, mrIID int64, body string) error
-	PostInlineComment(projectID string, mrIID int64, refs DiffRefs, comment InlineComment) error
-	ReplyToMRDiscussion(projectID string, mrIID int64, discussionID, body string) error
+	FetchMR(ctx context.Context, projectID string, mrIID int64) (*MergeRequest, error)
+	FetchMRDiffs(ctx context.Context, projectID string, mrIID int64) ([]FileDiff, error)
+	FetchMRRawDiff(ctx context.Context, projectID string, mrIID int64) (string, error)
+	ListMRDiscussions(ctx context.Context, projectID string, mrIID int64) ([]MRDiscussion, error)
+	ListMRNotes(ctx context.Context, projectID string, mrIID int64) ([]MRNote, error)
+	ListOpenMRs(ctx context.Context, projectID string) ([]*MergeRequest, error)
+	PostSummaryNote(ctx context.Context, projectID string, mrIID int64, body string) error
+	PostInlineComment(ctx context.Context, projectID string, mrIID int64, refs DiffRefs, comment InlineComment) error
+	ReplyToMRDiscussion(ctx context.Context, projectID string, mrIID int64, discussionID, body string) error
 	FormatSuggestionBlock(suggestion string) string
 	Validate() error
 }

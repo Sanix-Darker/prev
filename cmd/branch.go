@@ -79,7 +79,7 @@ func runLegacyBranch(conf config.Config, branchName, repoPath, gitPath string, c
 	if conf.Debug {
 		common.LogInfo(prompt, nil)
 	}
-	callProvider(conf, prompt)
+	callProvider(cmd.Context(), conf, prompt)
 }
 
 func runEnhancedBranch(conf config.Config, cmd *cobra.Command, branchName, repoPath, gitPath string) {
@@ -120,7 +120,7 @@ func runEnhancedBranch(conf config.Config, cmd *cobra.Command, branchName, repoP
 		}
 	}
 
-	result, err := handlers.ExtractBranchReview(p, branchName, repoPath, gitPath, cfg, onProgress)
+	result, err := handlers.ExtractBranchReview(cmd.Context(), p, branchName, repoPath, gitPath, cfg, onProgress)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

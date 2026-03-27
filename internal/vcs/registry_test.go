@@ -1,6 +1,7 @@
 package vcs
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,18 +11,28 @@ import (
 // mockProvider implements VCSProvider for testing.
 type mockProvider struct{}
 
-func (m *mockProvider) Info() ProviderInfo                                             { return ProviderInfo{Name: "mock"} }
-func (m *mockProvider) Validate() error                                                { return nil }
-func (m *mockProvider) FormatSuggestionBlock(s string) string                          { return "```\n" + s + "\n```" }
-func (m *mockProvider) FetchMR(string, int64) (*MergeRequest, error)                   { return nil, nil }
-func (m *mockProvider) FetchMRDiffs(string, int64) ([]FileDiff, error)                 { return nil, nil }
-func (m *mockProvider) FetchMRRawDiff(string, int64) (string, error)                   { return "", nil }
-func (m *mockProvider) ListMRDiscussions(string, int64) ([]MRDiscussion, error)        { return nil, nil }
-func (m *mockProvider) ListMRNotes(string, int64) ([]MRNote, error)                    { return nil, nil }
-func (m *mockProvider) ListOpenMRs(string) ([]*MergeRequest, error)                    { return nil, nil }
-func (m *mockProvider) PostSummaryNote(string, int64, string) error                    { return nil }
-func (m *mockProvider) PostInlineComment(string, int64, DiffRefs, InlineComment) error { return nil }
-func (m *mockProvider) ReplyToMRDiscussion(string, int64, string, string) error        { return nil }
+func (m *mockProvider) Info() ProviderInfo                    { return ProviderInfo{Name: "mock"} }
+func (m *mockProvider) Validate() error                       { return nil }
+func (m *mockProvider) FormatSuggestionBlock(s string) string { return "```\n" + s + "\n```" }
+func (m *mockProvider) FetchMR(context.Context, string, int64) (*MergeRequest, error) {
+	return nil, nil
+}
+func (m *mockProvider) FetchMRDiffs(context.Context, string, int64) ([]FileDiff, error) {
+	return nil, nil
+}
+func (m *mockProvider) FetchMRRawDiff(context.Context, string, int64) (string, error) { return "", nil }
+func (m *mockProvider) ListMRDiscussions(context.Context, string, int64) ([]MRDiscussion, error) {
+	return nil, nil
+}
+func (m *mockProvider) ListMRNotes(context.Context, string, int64) ([]MRNote, error) { return nil, nil }
+func (m *mockProvider) ListOpenMRs(context.Context, string) ([]*MergeRequest, error) { return nil, nil }
+func (m *mockProvider) PostSummaryNote(context.Context, string, int64, string) error { return nil }
+func (m *mockProvider) PostInlineComment(context.Context, string, int64, DiffRefs, InlineComment) error {
+	return nil
+}
+func (m *mockProvider) ReplyToMRDiscussion(context.Context, string, int64, string, string) error {
+	return nil
+}
 
 func mockFactory(token, baseURL string) (VCSProvider, error) {
 	return &mockProvider{}, nil

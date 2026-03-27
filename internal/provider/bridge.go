@@ -29,16 +29,18 @@ func SimpleComplete(
 ) (string, []string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	return SimpleCompleteWithContext(ctx, p, systemPrompt, assistantPrompt, questionPrompt)
+}
 
-	req := CompletionRequest{
-		Messages: []Message{
-			{Role: RoleSystem, Content: systemPrompt},
-			{Role: RoleAssistant, Content: assistantPrompt},
-			{Role: RoleUser, Content: questionPrompt},
-		},
-	}
-
-	resp, err := p.Complete(ctx, req)
+// SimpleCompleteWithContext is the context-aware counterpart of SimpleComplete.
+func SimpleCompleteWithContext(
+	ctx context.Context,
+	p AIProvider,
+	systemPrompt string,
+	assistantPrompt string,
+	questionPrompt string,
+) (string, []string, error) {
+	resp, err := p.Complete(ctx, buildBridgeRequest(systemPrompt, assistantPrompt, questionPrompt, false))
 	if err != nil {
 		return "", nil, err
 	}
@@ -62,17 +64,19 @@ func SimpleCompleteStream(
 ) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
+	return SimpleCompleteStreamWithContext(ctx, p, systemPrompt, assistantPrompt, questionPrompt, onChunk)
+}
 
-	req := CompletionRequest{
-		Messages: []Message{
-			{Role: RoleSystem, Content: systemPrompt},
-			{Role: RoleAssistant, Content: assistantPrompt},
-			{Role: RoleUser, Content: questionPrompt},
-		},
-		Stream: true,
-	}
-
-	result := p.CompleteStream(ctx, req)
+// SimpleCompleteStreamWithContext is the context-aware counterpart of SimpleCompleteStream.
+func SimpleCompleteStreamWithContext(
+	ctx context.Context,
+	p AIProvider,
+	systemPrompt string,
+	assistantPrompt string,
+	questionPrompt string,
+	onChunk func(content string),
+) (string, error) {
+	result := p.CompleteStream(ctx, buildBridgeRequest(systemPrompt, assistantPrompt, questionPrompt, true))
 
 	var fullContent string
 	for chunk := range result.Chunks {
@@ -103,18 +107,22 @@ func SimpleCompleteStream(
 func ApiCallWithProvider(debug bool, p AIProvider, prompt string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
+	ApiCallWithProviderContext(ctx, debug, p, prompt)
+}
 
-	req := CompletionRequest{
-		Messages: []Message{
-			{Role: RoleSystem, Content: "You are a helpful assistant and source code reviewer."},
-			{Role: RoleAssistant, Content: "You are code reviewer for a project"},
-			{Role: RoleUser, Content: prompt},
-		},
-	}
+// ApiCallWithProviderContext runs a provider call with an explicit parent context.
+func ApiCallWithProviderContext(ctx context.Context, debug bool, p AIProvider, prompt string) {
+	req := buildBridgeRequest(
+		"You are a helpful assistant and source code reviewer.",
+		"You are code reviewer for a project",
+		prompt,
+		false,
+	)
 
 	// Use streaming if supported, otherwise fall back to blocking.
 	info := p.Info()
 	if info.SupportsStreaming {
+		req.Stream = true
 		result := p.CompleteStream(ctx, req)
 		for chunk := range result.Chunks {
 			fmt.Print(chunk.Content)
@@ -123,12 +131,24 @@ func ApiCallWithProvider(debug bool, p AIProvider, prompt string) {
 			fmt.Printf("\nError: %v\n", err)
 		}
 		fmt.Println()
-	} else {
-		resp, err := p.Complete(ctx, req)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			return
-		}
-		fmt.Println(resp.Content)
+		return
+	}
+
+	resp, err := p.Complete(ctx, req)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Println(resp.Content)
+}
+
+func buildBridgeRequest(systemPrompt, assistantPrompt, questionPrompt string, stream bool) CompletionRequest {
+	return CompletionRequest{
+		Messages: []Message{
+			{Role: RoleSystem, Content: systemPrompt},
+			{Role: RoleAssistant, Content: assistantPrompt},
+			{Role: RoleUser, Content: questionPrompt},
+		},
+		Stream: stream,
 	}
 }

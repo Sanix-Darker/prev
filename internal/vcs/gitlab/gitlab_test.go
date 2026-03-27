@@ -1,6 +1,7 @@
 package gitlab
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +42,7 @@ func TestFetchMR(t *testing.T) {
 		})
 	}))
 
-	mr, err := p.FetchMR("grp/proj", 42)
+	mr, err := p.FetchMR(context.Background(), "grp/proj", 42)
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), mr.IID)
 	assert.Equal(t, "Add feature", mr.Title)
@@ -65,7 +66,7 @@ func TestFetchMRDiffs(t *testing.T) {
 		})
 	}))
 
-	diffs, err := p.FetchMRDiffs("grp/proj", 42)
+	diffs, err := p.FetchMRDiffs(context.Background(), "grp/proj", 42)
 	require.NoError(t, err)
 	assert.Len(t, diffs, 1)
 	assert.Equal(t, "main.go", diffs[0].NewPath)
@@ -78,7 +79,7 @@ func TestFetchMRRawDiff(t *testing.T) {
 		_, _ = w.Write([]byte("diff --git a/main.go b/main.go\n@@ -1,1 +1,2 @@\n package main\n+import \"fmt\"\n"))
 	}))
 
-	raw, err := p.FetchMRRawDiff("grp/proj", 42)
+	raw, err := p.FetchMRRawDiff(context.Background(), "grp/proj", 42)
 	require.NoError(t, err)
 	assert.Contains(t, raw, "diff --git")
 	assert.Contains(t, raw, "@@ -1,1 +1,2 @@")
@@ -93,7 +94,7 @@ func TestPostSummaryNote(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]interface{}{"id": 1})
 	}))
 
-	err := p.PostSummaryNote("grp/proj", 42, "Looks good!")
+	err := p.PostSummaryNote(context.Background(), "grp/proj", 42, "Looks good!")
 	require.NoError(t, err)
 	assert.Equal(t, "Looks good!", gotBody)
 }
@@ -108,7 +109,7 @@ func TestPostInlineComment(t *testing.T) {
 	refs := vcs.DiffRefs{BaseSHA: "aaa", HeadSHA: "bbb", StartSHA: "ccc"}
 	comment := vcs.InlineComment{FilePath: "main.go", NewLine: 10, OldLine: 9, Body: "Fix this"}
 
-	err := p.PostInlineComment("grp/proj", 42, refs, comment)
+	err := p.PostInlineComment(context.Background(), "grp/proj", 42, refs, comment)
 	require.NoError(t, err)
 	assert.Equal(t, "Fix this", gotReq["body"])
 
@@ -137,7 +138,7 @@ func TestPostInlineComment_UsesExplicitOldPath(t *testing.T) {
 		Body:     "Fix this",
 	}
 
-	err := p.PostInlineComment("grp/proj", 42, refs, comment)
+	err := p.PostInlineComment(context.Background(), "grp/proj", 42, refs, comment)
 	require.NoError(t, err)
 
 	pos, ok := gotReq["position"].(map[string]interface{})
@@ -170,7 +171,7 @@ func TestListOpenMRs(t *testing.T) {
 		})
 	}))
 
-	mrs, err := p.ListOpenMRs("grp/proj")
+	mrs, err := p.ListOpenMRs(context.Background(), "grp/proj")
 	require.NoError(t, err)
 	assert.Len(t, mrs, 2)
 	assert.Equal(t, "MR one", mrs[0].Title)
@@ -199,7 +200,7 @@ func TestListMRDiscussions(t *testing.T) {
 		})
 	}))
 
-	discussions, err := p.ListMRDiscussions("grp/proj", 42)
+	discussions, err := p.ListMRDiscussions(context.Background(), "grp/proj", 42)
 	require.NoError(t, err)
 	require.Len(t, discussions, 1)
 	require.Len(t, discussions[0].Notes, 1)
@@ -220,7 +221,7 @@ func TestListMRNotes(t *testing.T) {
 		})
 	}))
 
-	notes, err := p.ListMRNotes("grp/proj", 42)
+	notes, err := p.ListMRNotes(context.Background(), "grp/proj", 42)
 	require.NoError(t, err)
 	require.Len(t, notes, 1)
 	assert.Equal(t, int64(101), notes[0].ID)
@@ -238,7 +239,7 @@ func TestReplyToMRDiscussion(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]interface{}{"id": 11})
 	}))
 
-	err := p.ReplyToMRDiscussion("grp/proj", 42, "d1", "reply")
+	err := p.ReplyToMRDiscussion(context.Background(), "grp/proj", 42, "d1", "reply")
 	require.NoError(t, err)
 	assert.Equal(t, "reply", gotBody)
 }

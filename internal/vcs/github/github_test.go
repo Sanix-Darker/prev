@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -50,7 +51,7 @@ func TestProvider_FetchMRAndDiffs(t *testing.T) {
 	p, err := NewProvider("token-123", server.URL)
 	require.NoError(t, err)
 
-	mr, err := p.FetchMR("acme/blog", 42)
+	mr, err := p.FetchMR(context.Background(), "acme/blog", 42)
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), mr.IID)
 	assert.Equal(t, "Add recipe endpoints", mr.Title)
@@ -60,7 +61,7 @@ func TestProvider_FetchMRAndDiffs(t *testing.T) {
 	assert.Equal(t, "basesha", mr.DiffRefs.BaseSHA)
 	assert.Equal(t, "Bearer token-123", gotAuth)
 
-	diffs, err := p.FetchMRDiffs("acme/blog", 42)
+	diffs, err := p.FetchMRDiffs(context.Background(), "acme/blog", 42)
 	require.NoError(t, err)
 	require.Len(t, diffs, 1)
 	assert.Equal(t, "public/index.php", diffs[0].NewPath)
@@ -93,11 +94,11 @@ func TestProvider_PostComments(t *testing.T) {
 	p, err := NewProvider("token-123", server.URL)
 	require.NoError(t, err)
 
-	err = p.PostSummaryNote("acme/blog", 42, "summary")
+	err = p.PostSummaryNote(context.Background(), "acme/blog", 42, "summary")
 	require.NoError(t, err)
 	assert.Equal(t, "summary", summaryBody)
 
-	err = p.PostInlineComment("acme/blog", 42, vcs.DiffRefs{
+	err = p.PostInlineComment(context.Background(), "acme/blog", 42, vcs.DiffRefs{
 		HeadSHA: "headsha",
 	}, vcs.InlineComment{
 		FilePath: "public/index.php",
@@ -148,7 +149,7 @@ func TestProvider_ListMRDiscussions_GroupsReviewThreads(t *testing.T) {
 	p, err := NewProvider("token-123", server.URL)
 	require.NoError(t, err)
 
-	discussions, err := p.ListMRDiscussions("acme/blog", 42)
+	discussions, err := p.ListMRDiscussions(context.Background(), "acme/blog", 42)
 	require.NoError(t, err)
 	require.Len(t, discussions, 1)
 	assert.Equal(t, "101", discussions[0].ID)
@@ -173,7 +174,7 @@ func TestProvider_ReplyToMRDiscussion(t *testing.T) {
 	p, err := NewProvider("token-123", server.URL)
 	require.NoError(t, err)
 
-	err = p.ReplyToMRDiscussion("acme/blog", 42, "101", "reply body")
+	err = p.ReplyToMRDiscussion(context.Background(), "acme/blog", 42, "101", "reply body")
 	require.NoError(t, err)
 	assert.Equal(t, "reply body", payload["body"])
 	assert.Equal(t, float64(101), payload["in_reply_to"])

@@ -53,7 +53,7 @@ func (p *Provider) Validate() error {
 	return nil
 }
 
-func (p *Provider) FetchMR(projectID string, mrIID int64) (*vcs.MergeRequest, error) {
+func (p *Provider) FetchMR(ctx context.Context, projectID string, mrIID int64) (*vcs.MergeRequest, error) {
 	var pr struct {
 		Number int64  `json:"number"`
 		Title  string `json:"title"`
@@ -73,7 +73,7 @@ func (p *Provider) FetchMR(projectID string, mrIID int64) (*vcs.MergeRequest, er
 		HTMLURL string `json:"html_url"`
 	}
 
-	if err := p.getJSON(context.Background(), fmt.Sprintf("/repos/%s/pulls/%d", projectID, mrIID), &pr); err != nil {
+	if err := p.getJSON(ctx, fmt.Sprintf("/repos/%s/pulls/%d", projectID, mrIID), &pr); err != nil {
 		return nil, fmt.Errorf("github: failed to fetch PR #%d: %w", mrIID, err)
 	}
 
@@ -94,7 +94,7 @@ func (p *Provider) FetchMR(projectID string, mrIID int64) (*vcs.MergeRequest, er
 	}, nil
 }
 
-func (p *Provider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, error) {
+func (p *Provider) FetchMRDiffs(ctx context.Context, projectID string, mrIID int64) ([]vcs.FileDiff, error) {
 	type prFile struct {
 		Filename         string `json:"filename"`
 		PreviousFilename string `json:"previous_filename"`
@@ -107,7 +107,7 @@ func (p *Provider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, 
 	for {
 		endpoint := fmt.Sprintf("/repos/%s/pulls/%d/files?per_page=100&page=%d", projectID, mrIID, page)
 		var files []prFile
-		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &files)
+		resp, err := p.getJSONWithResponse(ctx, endpoint, &files)
 		if err != nil {
 			return nil, fmt.Errorf("github: failed to fetch PR files: %w", err)
 		}
@@ -139,8 +139,8 @@ func (p *Provider) FetchMRDiffs(projectID string, mrIID int64) ([]vcs.FileDiff, 
 	return all, nil
 }
 
-func (p *Provider) FetchMRRawDiff(projectID string, mrIID int64) (string, error) {
-	req, err := p.newRequest(context.Background(), http.MethodGet,
+func (p *Provider) FetchMRRawDiff(ctx context.Context, projectID string, mrIID int64) (string, error) {
+	req, err := p.newRequest(ctx, http.MethodGet,
 		fmt.Sprintf("/repos/%s/pulls/%d", projectID, mrIID),
 		nil,
 	)
@@ -168,7 +168,7 @@ func (p *Provider) FetchMRRawDiff(projectID string, mrIID int64) (string, error)
 	return strings.TrimSpace(string(raw)), nil
 }
 
-func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDiscussion, error) {
+func (p *Provider) ListMRDiscussions(ctx context.Context, projectID string, mrIID int64) ([]vcs.MRDiscussion, error) {
 	type reviewComment struct {
 		ID           int64  `json:"id"`
 		InReplyToID  *int64 `json:"in_reply_to_id"`
@@ -187,7 +187,7 @@ func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDis
 	for {
 		endpoint := fmt.Sprintf("/repos/%s/pulls/%d/comments?per_page=100&page=%d", projectID, mrIID, page)
 		var comments []reviewComment
-		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &comments)
+		resp, err := p.getJSONWithResponse(ctx, endpoint, &comments)
 		if err != nil {
 			return nil, fmt.Errorf("github: failed to list PR review comments: %w", err)
 		}
@@ -232,7 +232,7 @@ func (p *Provider) ListMRDiscussions(projectID string, mrIID int64) ([]vcs.MRDis
 	return out, nil
 }
 
-func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, error) {
+func (p *Provider) ListMRNotes(ctx context.Context, projectID string, mrIID int64) ([]vcs.MRNote, error) {
 	type note struct {
 		ID   int64  `json:"id"`
 		Body string `json:"body"`
@@ -246,7 +246,7 @@ func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, err
 	for {
 		endpoint := fmt.Sprintf("/repos/%s/issues/%d/comments?per_page=100&page=%d", projectID, mrIID, page)
 		var notes []note
-		resp, err := p.getJSONWithResponse(context.Background(), endpoint, &notes)
+		resp, err := p.getJSONWithResponse(ctx, endpoint, &notes)
 		if err != nil {
 			return nil, fmt.Errorf("github: failed to list PR notes: %w", err)
 		}
@@ -268,7 +268,7 @@ func (p *Provider) ListMRNotes(projectID string, mrIID int64) ([]vcs.MRNote, err
 	return out, nil
 }
 
-func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
+func (p *Provider) ListOpenMRs(ctx context.Context, projectID string) ([]*vcs.MergeRequest, error) {
 	var prs []struct {
 		Number int64  `json:"number"`
 		Title  string `json:"title"`
@@ -286,7 +286,7 @@ func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
 	}
 
 	endpoint := fmt.Sprintf("/repos/%s/pulls?state=open&per_page=20", projectID)
-	if err := p.getJSON(context.Background(), endpoint, &prs); err != nil {
+	if err := p.getJSON(ctx, endpoint, &prs); err != nil {
 		return nil, fmt.Errorf("github: failed to list PRs: %w", err)
 	}
 
@@ -305,9 +305,9 @@ func (p *Provider) ListOpenMRs(projectID string) ([]*vcs.MergeRequest, error) {
 	return result, nil
 }
 
-func (p *Provider) PostSummaryNote(projectID string, mrIID int64, body string) error {
+func (p *Provider) PostSummaryNote(ctx context.Context, projectID string, mrIID int64, body string) error {
 	payload := map[string]string{"body": body}
-	if err := p.postJSON(context.Background(),
+	if err := p.postJSON(ctx,
 		fmt.Sprintf("/repos/%s/issues/%d/comments", projectID, mrIID),
 		payload,
 		nil,
@@ -317,7 +317,7 @@ func (p *Provider) PostSummaryNote(projectID string, mrIID int64, body string) e
 	return nil
 }
 
-func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.DiffRefs, comment vcs.InlineComment) error {
+func (p *Provider) PostInlineComment(ctx context.Context, projectID string, mrIID int64, refs vcs.DiffRefs, comment vcs.InlineComment) error {
 	if refs.HeadSHA == "" {
 		return fmt.Errorf("github: missing head SHA for inline comment")
 	}
@@ -333,7 +333,7 @@ func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.Dif
 		"side":      "RIGHT",
 	}
 
-	if err := p.postJSON(context.Background(),
+	if err := p.postJSON(ctx,
 		fmt.Sprintf("/repos/%s/pulls/%d/comments", projectID, mrIID),
 		payload,
 		nil,
@@ -343,7 +343,7 @@ func (p *Provider) PostInlineComment(projectID string, mrIID int64, refs vcs.Dif
 	return nil
 }
 
-func (p *Provider) ReplyToMRDiscussion(projectID string, mrIID int64, discussionID, body string) error {
+func (p *Provider) ReplyToMRDiscussion(ctx context.Context, projectID string, mrIID int64, discussionID, body string) error {
 	parentID, err := strconv.ParseInt(strings.TrimSpace(discussionID), 10, 64)
 	if err != nil || parentID <= 0 {
 		return fmt.Errorf("github: invalid discussion id %q for reply", discussionID)
@@ -352,7 +352,7 @@ func (p *Provider) ReplyToMRDiscussion(projectID string, mrIID int64, discussion
 		"body":        body,
 		"in_reply_to": parentID,
 	}
-	if err := p.postJSON(context.Background(),
+	if err := p.postJSON(ctx,
 		fmt.Sprintf("/repos/%s/pulls/%d/comments", projectID, mrIID),
 		payload,
 		nil,

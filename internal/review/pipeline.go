@@ -17,6 +17,7 @@ type ProgressCallback func(stage string, current, total int)
 
 // RunBranchReview executes the full two-pass review pipeline.
 func RunBranchReview(
+	ctx context.Context,
 	aiProvider provider.AIProvider,
 	repoPath string,
 	branchName string,
@@ -103,7 +104,7 @@ func RunBranchReview(
 		fmt.Printf("[debug] walkthrough prompt length: %d chars\n", len(walkthroughPrompt))
 	}
 
-	walkthroughContent, err := completeConversation(walkthroughConv, walkthroughPrompt)
+	walkthroughContent, err := completeConversation(ctx, walkthroughConv, walkthroughPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("walkthrough AI call failed: %w", err)
 	}
@@ -140,7 +141,7 @@ func RunBranchReview(
 		}
 
 		reviewConv := reviewBaseConv.Clone()
-		reviewContent, err := completeConversation(reviewConv, reviewPrompt)
+		reviewContent, err := completeConversation(ctx, reviewConv, reviewPrompt)
 		if err != nil {
 			return nil, fmt.Errorf("review AI call (batch %d) failed: %w", i+1, err)
 		}
@@ -190,8 +191,8 @@ func RunBranchReview(
 	}, nil
 }
 
-func completeConversation(conv *provider.Conversation, prompt string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+func completeConversation(parent context.Context, conv *provider.Conversation, prompt string) (string, error) {
+	ctx, cancel := context.WithTimeout(parent, 120*time.Second)
 	defer cancel()
 
 	resp, err := conv.Complete(ctx, prompt)

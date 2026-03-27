@@ -1119,7 +1119,7 @@ func TestRunReviewPasses_PreservesConversationHistory(t *testing.T) {
 		{Content: "second review", Choices: []provider.Choice{{Content: "second review"}}},
 	}}
 
-	out, err := runReviewPasses(ai, "BASE_PROMPT", 2)
+	out, err := runReviewPasses(context.Background(), ai, "BASE_PROMPT", 2)
 	require.NoError(t, err)
 	assert.Equal(t, "second review", out)
 	require.Len(t, ai.requests, 2)

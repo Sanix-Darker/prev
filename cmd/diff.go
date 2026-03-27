@@ -47,7 +47,7 @@ func NewDiffCmd(conf config.Config) *cobra.Command {
 				common.LogInfo(prompt, nil)
 			}
 
-			callProvider(conf, prompt)
+			callProvider(cmd.Context(), conf, prompt)
 		},
 	}
 

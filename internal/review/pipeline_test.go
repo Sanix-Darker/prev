@@ -167,7 +167,7 @@ This branch adds a greeting feature and updates the hello function.
 		SerenaMode:     "off",
 	}
 
-	result, err := RunBranchReview(mock, repoPath, "feature", "main", cfg, nil)
+	result, err := RunBranchReview(context.Background(), mock, repoPath, "feature", "main", cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -189,7 +189,7 @@ func TestRunBranchReview_EmptyDiff(t *testing.T) {
 	cfg.SerenaMode = "off"
 
 	// Same branch as base and target
-	_, err := RunBranchReview(mock, repoPath, "main", "main", cfg, nil)
+	_, err := RunBranchReview(context.Background(), mock, repoPath, "main", "main", cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no differences")
 }
@@ -213,7 +213,7 @@ func TestRunBranchReview_ProgressCallbacks(t *testing.T) {
 		stages = append(stages, stage)
 	}
 
-	result, err := RunBranchReview(mock, repoPath, "feature", "main", cfg, onProgress)
+	result, err := RunBranchReview(context.Background(), mock, repoPath, "feature", "main", cfg, onProgress)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -312,7 +312,7 @@ This branch updates hello output.
 	}
 
 	cfg := ReviewConfig{ContextLines: 3, MaxBatchTokens: 80000, Strictness: "normal", SerenaMode: "off"}
-	_, err := RunBranchReview(mock, repoPath, "feature", "main", cfg, nil)
+	_, err := RunBranchReview(context.Background(), mock, repoPath, "feature", "main", cfg, nil)
 	require.NoError(t, err)
 	require.Len(t, mock.requests, 2)
 
