@@ -84,6 +84,10 @@ func RunBranchReview(
 	// Step 6: Get diff stat
 	diffStat, _ := core.GetDiffStat(repoPath, baseBranch, branchName)
 
+	walkthroughConv := provider.NewConversation(aiProvider, provider.ConversationOptions{
+		SystemPrompt: "You are an expert code reviewer. Keep branch walkthroughs concise and preserve useful context for detailed follow-up review.",
+	})
+
 	// Step 7: Pass 1 — Walkthrough
 	onProgress("AI walkthrough", 0, 0)
 	walkthroughPrompt := BuildWalkthroughPrompt(
@@ -99,12 +103,20 @@ func RunBranchReview(
 		fmt.Printf("[debug] walkthrough prompt length: %d chars\n", len(walkthroughPrompt))
 	}
 
-	walkthroughContent, err := completeWithProvider(aiProvider, walkthroughPrompt)
+	walkthroughContent, err := completeConversation(walkthroughConv, walkthroughPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("walkthrough AI call failed: %w", err)
 	}
 
 	walkthrough := parseWalkthrough(walkthroughContent)
+	walkthroughContext := formatWalkthroughContext(walkthrough)
+	reviewBaseConv := provider.NewConversation(aiProvider, provider.ConversationOptions{
+		SystemPrompt: "You are an expert code reviewer performing detailed file-by-file follow-up review. Use prior walkthrough context to stay consistent, but only report findings supported by the current batch diff.",
+		Messages: []provider.Message{{
+			Role:    provider.RoleAssistant,
+			Content: walkthroughContext,
+		}},
+	})
 
 	// Step 8: Batch files
 	batches := BatchFiles(categorized, cfg.MaxBatchTokens)
@@ -116,18 +128,19 @@ func RunBranchReview(
 
 		reviewPrompt := BuildFileReviewPrompt(
 			batch,
-			walkthrough.Summary,
+			walkthroughContext,
 			branchName,
 			cfg.Strictness,
 			cfg.Guidelines,
 		)
 
 		if cfg.Debug {
-			fmt.Printf("[debug] batch %d/%d: %d files, prompt length: %d chars\n",
-				i+1, len(batches), len(batch.Files), len(reviewPrompt))
+			fmt.Printf("[debug] batch %d/%d: %d files, prompt length: %d chars, walkthrough_response_id=%s\n",
+				i+1, len(batches), len(batch.Files), len(reviewPrompt), walkthroughConv.LastResponseID())
 		}
 
-		reviewContent, err := completeWithProvider(aiProvider, reviewPrompt)
+		reviewConv := reviewBaseConv.Clone()
+		reviewContent, err := completeConversation(reviewConv, reviewPrompt)
 		if err != nil {
 			return nil, fmt.Errorf("review AI call (batch %d) failed: %w", i+1, err)
 		}
@@ -177,23 +190,38 @@ func RunBranchReview(
 	}, nil
 }
 
-// completeWithProvider does a blocking AI completion call.
-func completeWithProvider(p provider.AIProvider, prompt string) (string, error) {
+func completeConversation(conv *provider.Conversation, prompt string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	req := provider.CompletionRequest{
-		Messages: []provider.Message{
-			{Role: provider.RoleSystem, Content: "You are an expert code reviewer."},
-			{Role: provider.RoleUser, Content: prompt},
-		},
-	}
-
-	resp, err := p.Complete(ctx, req)
+	resp, err := conv.Complete(ctx, prompt)
 	if err != nil {
 		return "", err
 	}
 	return resp.Content, nil
+}
+
+func formatWalkthroughContext(w WalkthroughResult) string {
+	var sb strings.Builder
+	summary := strings.TrimSpace(w.Summary)
+	if summary != "" {
+		sb.WriteString("Walkthrough summary:\n")
+		sb.WriteString(summary)
+		sb.WriteString("\n")
+	}
+	changes := strings.TrimSpace(w.ChangesTable)
+	if changes != "" {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("Walkthrough changes table:\n")
+		sb.WriteString(changes)
+	}
+	out := strings.TrimSpace(sb.String())
+	if out == "" {
+		return "Walkthrough summary unavailable. Review the batch strictly from the provided diff context."
+	}
+	return out
 }
 
 // parseWalkthrough extracts structured walkthrough from AI response.

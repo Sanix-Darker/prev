@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
@@ -1129,20 +1130,19 @@ func processReplyCommands(
 		}
 		path, line := discussionAnchor(d)
 		hunk := extractHunkContext(changes, path, line)
-		prompt := buildThreadReplyPrompt(d, hunk)
-		_, choices, err := provider.SimpleComplete(
-			ai,
-			"You are an expert code reviewer replying in a merge request discussion.",
-			"You answer thread questions with code-aware reasoning tied to the hunk context.",
-			prompt,
-		)
-		if err != nil || len(choices) == 0 || strings.TrimSpace(choices[0]) == "" {
+		prompt := buildThreadReplyPrompt(hunk)
+		conv := provider.NewConversation(ai, provider.ConversationOptions{
+			SystemPrompt: "You are an expert code reviewer replying in a merge request discussion. Preserve thread continuity, answer the latest request directly, and tie your reply to the available hunk context.",
+			Messages:     buildDiscussionConversationMessages(d, mentionHandle),
+		})
+		content, err := completeConversationPrompt(conv, prompt)
+		if err != nil || strings.TrimSpace(content) == "" {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to generate reply for discussion %s: %v\n", d.ID, err)
 			}
 			continue
 		}
-		body := strings.TrimSpace(choices[0]) + "\n\n" + prevReplyMarker
+		body := strings.TrimSpace(content) + "\n\n" + prevReplyMarker
 		if err := vcsProvider.ReplyToMRDiscussion(projectID, mrIID, d.ID, body); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to post reply in discussion %s: %v\n", d.ID, err)
 			continue
@@ -1152,15 +1152,59 @@ func processReplyCommands(
 	return posted
 }
 
-func buildThreadReplyPrompt(d vcs.MRDiscussion, hunk string) string {
-	var convo []string
+func buildThreadReplyPrompt(hunk string) string {
+	return "Hunk context (use this before answering):\n" + hunk + "\n\n" +
+		"Task: Reply to the latest user @mention in this thread. " +
+		"Answer the newest question directly, keep continuity with the prior discussion, and address impact/risk first."
+}
+
+func buildDiscussionConversationMessages(d vcs.MRDiscussion, mentionHandle string) []provider.Message {
+	msgs := make([]provider.Message, 0, len(d.Notes))
 	for _, n := range d.Notes {
-		convo = append(convo, fmt.Sprintf("- %s: %s", n.Author, strings.TrimSpace(n.Body)))
+		body := sanitizeConversationBody(n.Body)
+		if body == "" {
+			continue
+		}
+		role := provider.RoleUser
+		label := strings.TrimSpace(n.Author)
+		if label == "" {
+			label = "reviewer"
+		}
+		if isBotAuthor(n.Author, mentionHandle) {
+			role = provider.RoleAssistant
+		}
+		msgs = appendConversationMessage(msgs, role, fmt.Sprintf("%s says:\n%s", label, body))
 	}
-	return "Thread conversation:\n" + strings.Join(convo, "\n") + "\n\n" +
-		"Hunk context (use this before answering):\n" + hunk + "\n\n" +
-		"Task: Reply to the latest @mention in this thread. " +
-		"Be concise, technical, and address impact/risk first."
+	return msgs
+}
+
+func appendConversationMessage(msgs []provider.Message, role provider.Role, content string) []provider.Message {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return msgs
+	}
+	if len(msgs) > 0 && msgs[len(msgs)-1].Role == role {
+		msgs[len(msgs)-1].Content = strings.TrimSpace(msgs[len(msgs)-1].Content + "\n\n" + content)
+		return msgs
+	}
+	return append(msgs, provider.Message{Role: role, Content: content})
+}
+
+func sanitizeConversationBody(body string) string {
+	lines := strings.Split(strings.TrimSpace(body), "\n")
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			filtered = append(filtered, "")
+			continue
+		}
+		if strings.HasPrefix(trimmed, "<!-- prev:") {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+	return strings.TrimSpace(strings.Join(filtered, "\n"))
 }
 
 func processNoteReplyCommands(
@@ -1194,19 +1238,17 @@ func processNoteReplyCommands(
 			continue
 		}
 		prompt := buildNoteReplyPrompt(note, mr)
-		_, choices, err := provider.SimpleComplete(
-			ai,
-			"You are an expert code reviewer replying to a merge request comment.",
-			"Answer questions directly and concisely, referencing the MR context when helpful.",
-			prompt,
-		)
-		if err != nil || len(choices) == 0 || strings.TrimSpace(choices[0]) == "" {
+		conv := provider.NewConversation(ai, provider.ConversationOptions{
+			SystemPrompt: "You are an expert code reviewer replying to a merge request comment. Answer directly, stay scoped to the MR context, and avoid repeating boilerplate.",
+		})
+		content, err := completeConversationPrompt(conv, prompt)
+		if err != nil || strings.TrimSpace(content) == "" {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to generate reply for note %d: %v\n", note.ID, err)
 			}
 			continue
 		}
-		body := strings.TrimSpace(choices[0]) + "\n\n" + prevReplyMarker
+		body := strings.TrimSpace(content) + "\n\n" + prevReplyMarker
 		if mr == nil || mr.DiffRefs.HeadSHA == "" || mr.DiffRefs.BaseSHA == "" {
 			fmt.Fprintf(os.Stderr, "Warning: missing diff refs; cannot post inline reply for note %d\n", note.ID)
 			continue
@@ -2859,28 +2901,37 @@ func runReviewPasses(p provider.AIProvider, basePrompt string, passes int) (stri
 	if passes <= 0 {
 		passes = 1
 	}
+	conv := provider.NewConversation(p, provider.ConversationOptions{
+		SystemPrompt: "You are a helpful assistant and source code reviewer. Keep continuity across review passes, preserve valid findings, and improve precision on each pass.",
+	})
 	currentPrompt := basePrompt
 	latest := ""
 	for pass := 1; pass <= passes; pass++ {
 		fmt.Printf("Review pass %d/%d...\n", pass, passes)
-		_, choices, err := provider.SimpleComplete(
-			p,
-			"You are a helpful assistant and source code reviewer.",
-			"You are code reviewer for a project",
-			currentPrompt,
-		)
+		content, err := completeConversationPrompt(conv, currentPrompt)
 		if err != nil {
 			return "", err
 		}
-		if len(choices) == 0 || strings.TrimSpace(choices[0]) == "" {
+		if strings.TrimSpace(content) == "" {
 			return "", fmt.Errorf("no response from AI provider on pass %d", pass)
 		}
-		latest = choices[0]
+		latest = content
 		if pass < passes {
-			currentPrompt = buildReReviewPrompt(basePrompt, latest, pass+1, passes)
+			currentPrompt = buildReReviewPrompt(pass+1, passes)
 		}
 	}
 	return latest, nil
+}
+
+func completeConversationPrompt(conv *provider.Conversation, prompt string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	resp, err := conv.Complete(ctx, prompt)
+	if err != nil {
+		return "", err
+	}
+	return resp.Content, nil
 }
 
 func runReviewPassesDryRun(conf config.Config, basePrompt string, passes int) {
@@ -2903,23 +2954,17 @@ func runReviewPassesDryRun(conf config.Config, basePrompt string, passes int) {
 	fmt.Print(renders.RenderMarkdown(content))
 }
 
-func buildReReviewPrompt(basePrompt, priorReview string, pass, total int) string {
+func buildReReviewPrompt(pass, total int) string {
 	return fmt.Sprintf(`You are running review pass %d/%d.
 
-Goal: re-review the exact same merge request context and improve quality.
-- Keep all valid findings.
-- Remove weak/duplicate findings.
+Use the same merge request context and prior review already present in this conversation.
+Goal:
+- Keep valid findings.
+- Remove weak, redundant, or duplicate findings.
 - Add any missed high-impact issues.
-- Preserve required output format from the original prompt.
+- Preserve the required final output format.
 
-Original review context:
-%s
-
-Prior pass output:
-%s
-
-Return a complete final review (not a diff against prior output).`,
-		pass, total, basePrompt, priorReview)
+Return a complete final review, not a diff against earlier passes.`, pass, total)
 }
 
 func recoverInlineFindings(p provider.AIProvider, basePrompt, priorReview string) (string, error) {
@@ -2932,30 +2977,20 @@ Requirements:
 - SEVERITY must be one of: CRITICAL, HIGH, MEDIUM, LOW
 - If none found, output exactly: NO_FINDINGS
 - Do not include summary/headers/tables.
+- Reuse only findings supported by the prior review and original MR prompt context already provided in this conversation.`
 
-Original MR review prompt:
-` + basePrompt + `
-
-Prior full review output:
-` + priorReview
-
-	_, choices, err := provider.SimpleComplete(
-		p,
-		"You are an expert code reviewer extracting structured findings.",
-		"Extract only parseable file findings.",
-		recoveryPrompt,
-	)
+	conv := provider.NewConversation(p, provider.ConversationOptions{
+		SystemPrompt: "You are an expert code reviewer extracting structured findings.",
+		Messages: []provider.Message{
+			{Role: provider.RoleUser, Content: "Original MR review prompt:\n" + basePrompt},
+			{Role: provider.RoleAssistant, Content: priorReview},
+		},
+	})
+	content, err := completeConversationPrompt(conv, recoveryPrompt)
 	if err != nil {
 		return "", err
 	}
-	if len(choices) == 0 {
-		return "", fmt.Errorf("no response from AI provider")
-	}
-	out := strings.TrimSpace(choices[0])
-	if strings.EqualFold(out, "NO_FINDINGS") {
-		return "", nil
-	}
-	return out, nil
+	return content, nil
 }
 
 func detectVCSContextStatus(

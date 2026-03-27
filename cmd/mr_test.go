@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"github.com/sanix-darker/prev/internal/config"
 	"github.com/sanix-darker/prev/internal/core"
 	"github.com/sanix-darker/prev/internal/diffparse"
+	"github.com/sanix-darker/prev/internal/provider"
 	"github.com/sanix-darker/prev/internal/vcs"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -730,16 +732,6 @@ func TestMatchReusableThread_RejectsWeakSimilarity(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestBuildReReviewPrompt(t *testing.T) {
-	prompt := buildReReviewPrompt("BASE_PROMPT", "OLD_REVIEW", 2, 3)
-	assert.Contains(t, prompt, "review pass 2/3")
-	assert.Contains(t, prompt, "Original review context")
-	assert.Contains(t, prompt, "BASE_PROMPT")
-	assert.Contains(t, prompt, "Prior pass output")
-	assert.Contains(t, prompt, "OLD_REVIEW")
-	assert.Contains(t, prompt, "complete final review")
-}
-
 func TestResolveMRIntSetting_Precedence(t *testing.T) {
 	v := config.NewStore()
 	v.Set("review.nitpick", 3)
@@ -1080,4 +1072,75 @@ func TestResolveMRBoolSetting_PrefersFlagThenConfig(t *testing.T) {
 	f := cmd.Flags().Lookup("memory")
 	f.Changed = true
 	assert.True(t, resolveMRBoolSetting(cmd, "memory", conf, []string{"review.memory"}, false))
+}
+
+type scriptedAIProvider struct {
+	requests  []provider.CompletionRequest
+	responses []provider.CompletionResponse
+}
+
+func (s *scriptedAIProvider) Info() provider.ProviderInfo {
+	return provider.ProviderInfo{Name: "scripted"}
+}
+
+func (s *scriptedAIProvider) Complete(_ context.Context, req provider.CompletionRequest) (*provider.CompletionResponse, error) {
+	s.requests = append(s.requests, req)
+	idx := len(s.requests) - 1
+	resp := provider.CompletionResponse{Content: "ok", Choices: []provider.Choice{{Content: "ok"}}}
+	if idx < len(s.responses) {
+		resp = s.responses[idx]
+	}
+	if len(resp.Choices) == 0 && resp.Content != "" {
+		resp.Choices = []provider.Choice{{Content: resp.Content}}
+	}
+	return &resp, nil
+}
+
+func (s *scriptedAIProvider) CompleteStream(_ context.Context, _ provider.CompletionRequest) provider.StreamResult {
+	chunks := make(chan provider.StreamChunk)
+	errs := make(chan error, 1)
+	close(chunks)
+	close(errs)
+	return provider.StreamResult{Chunks: chunks, Err: errs}
+}
+
+func (s *scriptedAIProvider) Validate(_ context.Context) error { return nil }
+
+func TestBuildReReviewPrompt(t *testing.T) {
+	prompt := buildReReviewPrompt(2, 3)
+	assert.Contains(t, prompt, "review pass 2/3")
+	assert.Contains(t, prompt, "already present in this conversation")
+	assert.Contains(t, prompt, "complete final review")
+}
+
+func TestRunReviewPasses_PreservesConversationHistory(t *testing.T) {
+	ai := &scriptedAIProvider{responses: []provider.CompletionResponse{
+		{Content: "first review", Choices: []provider.Choice{{Content: "first review"}}},
+		{Content: "second review", Choices: []provider.Choice{{Content: "second review"}}},
+	}}
+
+	out, err := runReviewPasses(ai, "BASE_PROMPT", 2)
+	require.NoError(t, err)
+	assert.Equal(t, "second review", out)
+	require.Len(t, ai.requests, 2)
+	require.Len(t, ai.requests[1].Messages, 4)
+	assert.Equal(t, provider.RoleAssistant, ai.requests[1].Messages[2].Role)
+	assert.Equal(t, "first review", ai.requests[1].Messages[2].Content)
+	assert.Contains(t, ai.requests[1].Messages[3].Content, "review pass 2/2")
+}
+
+func TestBuildDiscussionConversationMessages_StripsMarkersAndMergesRoles(t *testing.T) {
+	discussion := vcs.MRDiscussion{Notes: []vcs.MRDiscussionNote{
+		{Author: "prev", Body: "<!-- prev:thread -->\nFirst bot note"},
+		{Author: "prev", Body: "<!-- prev:reply -->\nSecond bot note"},
+		{Author: "alice", Body: "@prev reply\nCan you clarify the risk?"},
+	}}
+
+	msgs := buildDiscussionConversationMessages(discussion, "prev")
+	require.Len(t, msgs, 2)
+	assert.Equal(t, provider.RoleAssistant, msgs[0].Role)
+	assert.NotContains(t, msgs[0].Content, "<!-- prev:")
+	assert.Contains(t, msgs[0].Content, "First bot note")
+	assert.Contains(t, msgs[0].Content, "Second bot note")
+	assert.Equal(t, provider.RoleUser, msgs[1].Role)
 }

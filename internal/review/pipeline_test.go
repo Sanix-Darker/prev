@@ -21,8 +21,8 @@ type mockProvider struct {
 
 func (m *mockProvider) Info() provider.ProviderInfo {
 	return provider.ProviderInfo{
-		Name:             "mock",
-		DisplayName:      "Mock",
+		Name:              "mock",
+		DisplayName:       "Mock",
 		SupportsStreaming: false,
 	}
 }
@@ -59,6 +59,7 @@ type sequentialMockProvider struct {
 	responses []string
 	callIdx   int
 	calls     []string
+	requests  []provider.CompletionRequest
 }
 
 func (s *sequentialMockProvider) Info() provider.ProviderInfo {
@@ -74,6 +75,7 @@ func (s *sequentialMockProvider) Complete(_ context.Context, req provider.Comple
 		prompt = prompt[:50]
 	}
 	s.calls = append(s.calls, prompt)
+	s.requests = append(s.requests, req)
 
 	resp := s.responses[0] // default to first
 	if s.callIdx < len(s.responses) {
@@ -291,4 +293,32 @@ This branch makes good changes.
 
 	assert.NotNil(t, mock)
 	assert.Equal(t, "normal", cfg.Strictness)
+}
+
+func TestRunBranchReview_CarriesWalkthroughContextIntoDetailedReview(t *testing.T) {
+	repoPath := setupPipelineRepo(t)
+	mock := &sequentialMockProvider{
+		responses: []string{
+			`## Summary
+This branch updates hello output.
+
+## Changes
+| File | Type | Summary |
+|------|------|---------|
+| main.go | Modified | Updated hello output |
+`,
+			"**main.go:6** [MEDIUM]: Example finding.\n",
+		},
+	}
+
+	cfg := ReviewConfig{ContextLines: 3, MaxBatchTokens: 80000, Strictness: "normal", SerenaMode: "off"}
+	_, err := RunBranchReview(mock, repoPath, "feature", "main", cfg, nil)
+	require.NoError(t, err)
+	require.Len(t, mock.requests, 2)
+
+	second := mock.requests[1].Messages
+	require.GreaterOrEqual(t, len(second), 3)
+	assert.Equal(t, provider.RoleAssistant, second[1].Role)
+	assert.Contains(t, second[1].Content, "Walkthrough summary")
+	assert.Contains(t, second[1].Content, "updates hello output")
 }

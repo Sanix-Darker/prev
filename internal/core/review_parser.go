@@ -608,6 +608,8 @@ Please provide:
 7. **Output constraints**:
    - concise findings (one short sentence preferred).
    - every finding line must include (line N) with a concrete changed line number.
+   - deduplicate overlapping root causes in the same hunk; prefer one stronger finding over several near-duplicates.
+   - do not restate the scope map inside file-by-file findings.
    - in "File-by-file findings", output only parseable finding lines (no bullets or prose blocks under a file heading).
    - keep suggestion patches scoped to target hunk only.
    - preserve exact code characters/spacing.

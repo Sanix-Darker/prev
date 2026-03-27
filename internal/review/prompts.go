@@ -87,12 +87,23 @@ func BuildWalkthroughPrompt(
 	sb.WriteString(`
 ## Your Task
 
-Provide:
-1. **Summary**: A 2-3 sentence overview of what this branch does and its quality.
-2. **Changes Table**: A markdown table with columns: | File | Type | Summary |
-   where Summary is a one-line description of what changed in each file.
-3. **Sequence Diagram** (optional): If the changes involve interactions between components,
-   include a short mermaid sequence diagram.
+Return a concise walkthrough with these exact sections in order:
+
+## Summary
+- 2-3 sentences on intent, changed behavior, and the highest-risk area.
+
+## Changes
+- A markdown table with columns: | File | Type | Summary |
+- Summary must be one short sentence per file.
+
+## Risks To Watch
+- Optional. Include only if there is a cross-file integration, migration, rollout, or test risk worth carrying into detailed review.
+
+Walkthrough constraints:
+- Do not emit file-by-file findings yet.
+- Do not repeat the full diff.
+- Call out intended behavior changes before code quality observations.
+- If the branch is mostly docs/config/tests, say that explicitly.
 
 Respond in Markdown format.
 `)
@@ -137,7 +148,14 @@ func BuildFileReviewPrompt(
 	sb.WriteString(`
 ## Review Instructions
 
-For each file, provide issues in this exact format:
+Output contract:
+- Review every changed hunk, but emit only meaningful findings.
+- Deduplicate overlapping observations in the same hunk; prefer one root-cause finding over several line-by-line variants.
+- Anchor each finding to the strongest changed line for that issue.
+- Keep findings terse and evidence-based.
+- Do not restate the walkthrough unless it changes the severity or scope judgment for a finding.
+
+For each finding, use this exact format:
 
 **file.go:42** [SEVERITY]: Description of the issue
 
@@ -149,7 +167,7 @@ When you have a code fix, use this format:
 corrected code here
 ` + "```" + `
 
-If a file has no significant issues, write:
+If a file has no significant issues, write exactly:
 **file.go**: No significant issues found.
 
 Focus on: bugs, security vulnerabilities, race conditions, error handling,

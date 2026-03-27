@@ -35,8 +35,9 @@ func TestBuildWalkthroughPrompt(t *testing.T) {
 	assert.Contains(t, prompt, "| File |")
 	assert.Contains(t, prompt, "main.go")
 	assert.Contains(t, prompt, "NORMAL")
-	assert.Contains(t, prompt, "Summary")
-	assert.Contains(t, prompt, "Changes Table")
+	assert.Contains(t, prompt, "## Summary")
+	assert.Contains(t, prompt, "## Changes")
+	assert.Contains(t, prompt, "## Risks To Watch")
 	assert.Contains(t, prompt, "Repo guideline: keep handlers thin.")
 }
 
@@ -70,6 +71,7 @@ func TestBuildFileReviewPrompt(t *testing.T) {
 	assert.Contains(t, prompt, "suggestion")
 	assert.Contains(t, prompt, "SEVERITY")
 	assert.Contains(t, prompt, "Repo guideline: use context-aware errors.")
+	assert.Contains(t, prompt, "Deduplicate overlapping observations")
 	assert.Contains(t, prompt, "Call-tree impact")
 	assert.Contains(t, prompt, "Regression/test risk")
 	assert.Contains(t, prompt, "Prioritize source-code files first.")
