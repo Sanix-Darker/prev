@@ -7,6 +7,22 @@ AI-powered code review CLI tool for diffs, commits, branches, and merge/pull req
 
 Supports multiple AI providers: **OpenAI**, **Anthropic (Claude)**, **Azure OpenAI**, **Gemini**, **Ollama**, **Groq**, **Together**, **LM Studio**, and any **OpenAI-compatible** API.
 
+### Supported AI Providers
+
+| Provider key | Service | Type | Typical auth/config |
+|---|---|---|---|
+| `openai` | OpenAI | Native | `OPENAI_API_KEY` |
+| `anthropic` | Anthropic / Claude | Native | `ANTHROPIC_API_KEY` |
+| `azure` | Azure OpenAI | Native | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, deployment/model |
+| `gemini` | Google Gemini | OpenAI-compatible | `GEMINI_API_KEY` |
+| `ollama` | Ollama | OpenAI-compatible | local `base_url` |
+| `groq` | Groq | OpenAI-compatible | `PREV_GROQ_API_KEY` or config |
+| `together` | Together | OpenAI-compatible | `PREV_TOGETHER_API_KEY` or config |
+| `lmstudio` | LM Studio | OpenAI-compatible | local `base_url` |
+| `openai-compat` | Generic OpenAI-compatible endpoint | OpenAI-compatible | config file recommended |
+
+Use `prev ai list` to see the providers available in your runtime and their default models.
+
 ### How prev Compares to Other Open-Source AI Reviewers
 
 | Feature | prev | PR-Agent (Qodo) | CodeRabbit | ai-pr-reviewer | Others |
