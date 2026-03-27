@@ -25,7 +25,7 @@
 - **Summary notes**: Posts an overall review summary as a merge request note
 - **Severity filtering**: Filters inline comments based on strictness level (strict/normal/lenient)
 - **Dry-run mode**: Preview reviews locally before posting
-- **Thread commands**: `@prev pause`, `@prev resume`, `@prev summary`, `@prev reply`, and `@prev review`
+- **Thread commands**: `prev pause`, `prev resume`, `prev summary`, `prev reply`, `prev review`, and `prev ignore`
 
 ### AI Provider System
 

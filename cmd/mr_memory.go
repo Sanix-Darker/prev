@@ -33,7 +33,7 @@ type reviewMemory struct {
 type reviewMemoryEntry struct {
 	ID        string `json:"id"`
 	RuleID    string `json:"rule_id"`
-	Status    string `json:"status"` // open|fixed
+	Status    string `json:"status"` // open|fixed|ignored
 	Severity  string `json:"severity"`
 	FilePath  string `json:"file_path"`
 	Line      int    `json:"line"`
@@ -122,7 +122,7 @@ func saveReviewMemory(path string, mem reviewMemory) error {
 }
 
 func renderReviewMemoryMarkdown(mem reviewMemory, payload string) string {
-	openCount, fixedCount := reviewMemoryCounts(mem)
+	openCount, fixedCount, ignoredCount := reviewMemoryCounts(mem)
 	var sb strings.Builder
 	sb.WriteString("# prev Review Memory\n\n")
 	sb.WriteString("<!-- prev:memory:v1 -->\n\n")
@@ -131,7 +131,8 @@ func renderReviewMemoryMarkdown(mem reviewMemory, payload string) string {
 	sb.WriteString(fmt.Sprintf("- Updated: `%s`\n", strings.TrimSpace(mem.UpdatedAt)))
 	sb.WriteString(fmt.Sprintf("- Entries: `%d`\n", len(mem.Entries)))
 	sb.WriteString(fmt.Sprintf("- Open: `%d`\n", openCount))
-	sb.WriteString(fmt.Sprintf("- Fixed: `%d`\n\n", fixedCount))
+	sb.WriteString(fmt.Sprintf("- Fixed: `%d`\n", fixedCount))
+	sb.WriteString(fmt.Sprintf("- Ignored: `%d`\n\n", ignoredCount))
 
 	writeMemoryTable := func(title string, filter func(reviewMemoryEntry) bool) {
 		sb.WriteString("## " + title + "\n\n")
@@ -156,6 +157,7 @@ func renderReviewMemoryMarkdown(mem reviewMemory, payload string) string {
 	}
 
 	writeMemoryTable("Open Findings", func(e reviewMemoryEntry) bool { return e.Status == "open" })
+	writeMemoryTable("Ignored Findings", func(e reviewMemoryEntry) bool { return e.Status == "ignored" })
 	writeMemoryTable("Fixed Findings", func(e reviewMemoryEntry) bool { return e.Status == "fixed" })
 
 	sb.WriteString("## Machine Data\n\n")
@@ -197,30 +199,47 @@ func normalizeReviewMemory(mem *reviewMemory) {
 			return ri > rj
 		}
 		if mem.Entries[i].Status != mem.Entries[j].Status {
-			return mem.Entries[i].Status == "open"
+			return memoryStatusOrder(mem.Entries[i].Status) < memoryStatusOrder(mem.Entries[j].Status)
 		}
 		return mem.Entries[i].LastSeen > mem.Entries[j].LastSeen
 	})
 }
 
-func reviewMemoryCounts(mem reviewMemory) (openCount, fixedCount int) {
+func reviewMemoryCounts(mem reviewMemory) (openCount, fixedCount, ignoredCount int) {
 	for _, e := range mem.Entries {
 		switch e.Status {
 		case "open":
 			openCount++
+		case "ignored":
+			ignoredCount++
 		case "fixed":
 			fixedCount++
 		}
 	}
-	return openCount, fixedCount
+	return openCount, fixedCount, ignoredCount
 }
 
 func normalizeMemoryStatus(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "fixed":
 		return "fixed"
+	case "ignored":
+		return "ignored"
 	default:
 		return "open"
+	}
+}
+
+func memoryStatusOrder(status string) int {
+	switch normalizeMemoryStatus(status) {
+	case "open":
+		return 0
+	case "ignored":
+		return 1
+	case "fixed":
+		return 2
+	default:
+		return 3
 	}
 }
 
@@ -242,7 +261,7 @@ func normalizeMemoryMessage(message string) string {
 	return strings.Join(fields, " ")
 }
 
-func updateReviewMemoryFromDiscussions(mem *reviewMemory, discussions []vcs.MRDiscussion, mrRef string, now time.Time) bool {
+func updateReviewMemoryFromDiscussions(mem *reviewMemory, discussions []vcs.MRDiscussion, mentionHandle, mrRef string, now time.Time) bool {
 	type noteState struct {
 		Severity string
 		Status   string
@@ -250,8 +269,10 @@ func updateReviewMemoryFromDiscussions(mem *reviewMemory, discussions []vcs.MRDi
 		Line     int
 		Message  string
 	}
+	ignoredThreads := ignoredDiscussions(discussions, mentionHandle)
 	byID := map[string]noteState{}
 	for _, d := range discussions {
+		threadIgnored := ignoredThreads[d.ID]
 		for _, n := range d.Notes {
 			if n.FilePath == "" || n.Line <= 0 {
 				continue
@@ -261,7 +282,9 @@ func updateReviewMemoryFromDiscussions(mem *reviewMemory, discussions []vcs.MRDi
 				continue
 			}
 			status := ""
-			if n.Resolved {
+			if threadIgnored {
+				status = "ignored"
+			} else if n.Resolved {
 				status = "fixed"
 			} else if n.Resolvable {
 				status = "open"
@@ -300,6 +323,10 @@ func updateReviewMemoryFromDiscussions(mem *reviewMemory, discussions []vcs.MRDi
 	for id, st := range byID {
 		if st.Status == "open" {
 			if upsertReviewMemory(mem, id, st.FilePath, st.Line, st.Severity, st.Message, "open", mrRef, now) {
+				changed = true
+			}
+		} else if st.Status == "ignored" {
+			if upsertReviewMemory(mem, id, st.FilePath, st.Line, st.Severity, st.Message, "ignored", mrRef, now) {
 				changed = true
 			}
 		} else {
@@ -428,7 +455,7 @@ func appendReviewMemoryGuidelines(guidelines string, mem reviewMemory, changes [
 	}
 	if len(relevant) == 0 {
 		for _, e := range mem.Entries {
-			if e.Status != "open" {
+			if e.Status != "open" && e.Status != "ignored" {
 				continue
 			}
 			relevant = append(relevant, e)
@@ -453,6 +480,7 @@ func appendReviewMemoryGuidelines(guidelines string, mem reviewMemory, changes [
 			strings.TrimSpace(e.Message), e.Hits, e.Fixes))
 	}
 	lines = append(lines,
+		"- Do not report ignored findings again unless a reviewer explicitly asks with `prev review`.",
 		"- Do not repeat fixed findings unless the issue reappears in the current diff.",
 		"- Prioritize recurring open findings when they are still present.",
 	)
@@ -483,4 +511,55 @@ func trimReviewMemory(mem *reviewMemory, maxEntries int) {
 		return mem.Entries[i].Hits > mem.Entries[j].Hits
 	})
 	mem.Entries = mem.Entries[:maxEntries]
+}
+
+func filterIgnoredFindings(findings []core.FileComment, mem reviewMemory, ignored []ignoredFinding) []core.FileComment {
+	if len(findings) == 0 {
+		return findings
+	}
+	allIgnored := make([]ignoredFinding, 0, len(mem.Entries)+len(ignored))
+	for _, entry := range mem.Entries {
+		if normalizeMemoryStatus(entry.Status) != "ignored" {
+			continue
+		}
+		allIgnored = append(allIgnored, ignoredFinding{
+			FilePath: entry.FilePath,
+			Line:     entry.Line,
+			Message:  entry.Message,
+			RuleID:   entry.RuleID,
+		})
+	}
+	allIgnored = append(allIgnored, ignored...)
+	if len(allIgnored) == 0 {
+		return findings
+	}
+	out := make([]core.FileComment, 0, len(findings))
+	for _, finding := range findings {
+		if ignoredMatchesFinding(finding, allIgnored) {
+			continue
+		}
+		out = append(out, finding)
+	}
+	return out
+}
+
+func ignoredMatchesFinding(finding core.FileComment, ignored []ignoredFinding) bool {
+	filePath := strings.TrimSpace(strings.TrimPrefix(finding.FilePath, "./"))
+	if filePath == "" {
+		return false
+	}
+	ruleID := memoryRuleID(finding.Message)
+	for _, item := range ignored {
+		if !strings.EqualFold(strings.TrimSpace(item.FilePath), filePath) {
+			continue
+		}
+		if strings.TrimSpace(item.RuleID) != "" && item.RuleID != ruleID {
+			continue
+		}
+		if finding.Line > 0 && item.Line > 0 && absInt(finding.Line-item.Line) > 5 {
+			continue
+		}
+		return true
+	}
+	return false
 }

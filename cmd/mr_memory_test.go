@@ -75,11 +75,77 @@ func TestUpdateReviewMemoryFromDiscussions_OpenBeatsFixed(t *testing.T) {
 		},
 	}
 
-	changed := updateReviewMemoryFromDiscussions(&mem, discussions, "grp/proj!3", now)
+	changed := updateReviewMemoryFromDiscussions(&mem, discussions, "prev", "grp/proj!3", now)
 	assert.True(t, changed)
 	require.Len(t, mem.Entries, 1)
 	assert.Equal(t, "open", mem.Entries[0].Status)
 	assert.Equal(t, 1, mem.Entries[0].Hits)
+	assert.Equal(t, "grp/proj!3", mem.Entries[0].LastMR)
+}
+
+func TestUpdateReviewMemoryFromDiscussions_IgnoreWinsForThread(t *testing.T) {
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	mem := reviewMemory{Version: reviewMemoryVersion}
+	discussions := []vcs.MRDiscussion{
+		{
+			ID: "d1",
+			Notes: []vcs.MRDiscussionNote{
+				{
+					FilePath:   "public/index.php",
+					Line:       31,
+					Body:       "<!-- prev:thread -->\n[HIGH] json_decode expects JSON string input.",
+					Resolvable: true,
+					Resolved:   false,
+				},
+				{Body: "prev ignore"},
+			},
+		},
+	}
+
+	changed := updateReviewMemoryFromDiscussions(&mem, discussions, "prev", "grp/proj!3", now)
+	assert.True(t, changed)
+	require.Len(t, mem.Entries, 1)
+	assert.Equal(t, "ignored", mem.Entries[0].Status)
+}
+
+func TestUpdateReviewMemoryFromDiscussions_ReviewClearsIgnoredStatusImmediately(t *testing.T) {
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	mem := reviewMemory{
+		Version: reviewMemoryVersion,
+		Entries: []reviewMemoryEntry{
+			{
+				ID:       memoryEntryID("public/index.php", 31, "json_decode expects JSON string input."),
+				RuleID:   memoryRuleID("json_decode expects JSON string input."),
+				Status:   "ignored",
+				Severity: "HIGH",
+				FilePath: "public/index.php",
+				Line:     31,
+				Message:  "json_decode expects JSON string input.",
+				LastMR:   "grp/proj!2",
+			},
+		},
+	}
+	discussions := []vcs.MRDiscussion{
+		{
+			ID: "d1",
+			Notes: []vcs.MRDiscussionNote{
+				{
+					FilePath:   "public/index.php",
+					Line:       31,
+					Body:       "<!-- prev:thread -->\n[HIGH] json_decode expects JSON string input.",
+					Resolvable: true,
+					Resolved:   false,
+				},
+				{Body: "prev ignore"},
+				{Body: "prev review"},
+			},
+		},
+	}
+
+	changed := updateReviewMemoryFromDiscussions(&mem, discussions, "prev", "grp/proj!3", now)
+	assert.True(t, changed)
+	require.Len(t, mem.Entries, 1)
+	assert.Equal(t, "open", mem.Entries[0].Status)
 	assert.Equal(t, "grp/proj!3", mem.Entries[0].LastMR)
 }
 
@@ -145,4 +211,28 @@ func TestAppendReviewMemoryGuidelines_UsesRelevantChangedFiles(t *testing.T) {
 	assert.Contains(t, out, "OPEN `public/index.php:31` [HIGH]")
 	assert.NotContains(t, out, "other/file.go")
 	assert.True(t, strings.HasPrefix(out, "Base"))
+}
+
+func TestFilterIgnoredFindings_FiltersByMemoryAndRule(t *testing.T) {
+	mem := reviewMemory{
+		Version: reviewMemoryVersion,
+		Entries: []reviewMemoryEntry{
+			{
+				ID:       "a",
+				RuleID:   memoryRuleID("json_decode expects JSON string input."),
+				Status:   "ignored",
+				Severity: "HIGH",
+				FilePath: "public/index.php",
+				Line:     31,
+				Message:  "json_decode expects JSON string input.",
+			},
+		},
+	}
+	findings := []core.FileComment{
+		{FilePath: "public/index.php", Line: 31, Severity: "HIGH", Message: "json_decode expects JSON string input."},
+		{FilePath: "public/index.php", Line: 40, Severity: "HIGH", Message: "different issue"},
+	}
+	filtered := filterIgnoredFindings(findings, mem, nil)
+	require.Len(t, filtered, 1)
+	assert.Equal(t, "different issue", filtered[0].Message)
 }

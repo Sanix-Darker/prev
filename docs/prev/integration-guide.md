@@ -36,6 +36,9 @@ an older Go image, `go install` will fail.
 - `prev review`
 - `prev summary`
 - `prev reply`
+- `prev ignore`
+
+`prev ignore` marks the current thread as intentionally suppressed for future reruns. A later `prev review` in the same thread clears that suppression immediately and allows the finding to be reconsidered on the next run.
 
 Do not use `@prev`; the command parser now looks for the plain handle keyword in comment text so it does not conflict with real user handles.
 

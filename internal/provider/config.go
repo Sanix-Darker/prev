@@ -198,7 +198,7 @@ review:
   native_impact_max_symbols: 12
   # Include AI fix prompt blocks in inline comments: off | auto | always.
   fix_prompt: "off"
-  # Bot handle used in MR thread commands (leading @ optional).
+  # Plain keyword used in MR thread commands. Config accepts an optional leading @, but comments should use the bare keyword.
   mention_handle: "prev"
   # Optional Serena/context defaults for MR review.
   # serena_mode: "auto"

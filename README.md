@@ -382,9 +382,10 @@ Use the plain keyword in sentence text. Do not rely on `@prev`, because `prev` m
 
 - `prev pause`: pause reviews for the MR/thread
 - `prev resume`: resume paused MR/thread reviews
-- `prev review`: force review processing for that thread
+- `prev review`: force review processing for that thread and clear any prior thread-level ignore state
 - `prev summary`: post one top-level summary note (idempotent)
 - `prev reply`: bot posts a thread reply
+- `prev ignore`: ignore the current finding/thread on future reruns until a reviewer re-requests it with `prev review`
 
 Inline continuity behavior:
 
@@ -592,7 +593,7 @@ review:
   native_impact_max_symbols: 12
   # Include AI fix prompt blocks in inline comments: off | auto | always.
   fix_prompt: "off"
-  # Bot handle used in MR thread commands (leading @ optional).
+  # Plain keyword used in MR thread commands. Config accepts an optional leading @, but comments should use the bare keyword.
   mention_handle: "prev"
   # Optional Serena/context defaults for MR review.
   # serena_mode: "auto"

@@ -74,6 +74,8 @@ Use the plain keyword in comment text, for example `prev reply` or `prev summary
 
 GitHub automation in this repository listens to PR updates, issue comments, and inline review-comment replies. GitLab command parsing uses the same `prev` keyword, but reruns still depend on project-specific CI/webhook wiring.
 
+Supported thread commands include `prev reply`, `prev summary`, `prev pause`, `prev resume`, `prev review`, and `prev ignore`. `prev review` clears a prior thread-level ignore state immediately.
+
 ## Review Continuity
 
 `prev` keeps logical conversation continuity across related AI calls inside one review flow. This applies to:

@@ -30,6 +30,7 @@ const (
 	prevCarryOverMarker = "<!-- prev:carry-over -->"
 	prevReplyMarker     = "<!-- prev:reply -->"
 	prevSummaryMarker   = "<!-- prev:summary -->"
+	prevIgnoreMarker    = "<!-- prev:ignore -->"
 	prevReuseMarker     = "<!-- prev:reuse -->"
 	prevBaselinePrefix  = "<!-- prev:baseline "
 	prevMentionHandle   = "prev"
@@ -270,13 +271,19 @@ func newMRReviewCmd() *cobra.Command {
 			}
 			validPositionsByFile := collectValidPositions(review.Changes)
 			pausedThreads := pausedDiscussions(discussions, mentionHandle)
+			ignoredThreads := ignoredDiscussions(discussions, mentionHandle)
 
-			carryOver := collectCarryOverFindings(discussions, validPositionsByFile, mentionHandle, pausedThreads)
+			carryOver := collectCarryOverFindings(discussions, validPositionsByFile, mentionHandle, pausedThreads, ignoredThreads)
 			if len(carryOver) > 0 {
 				reviewGuidelines = appendCarryOverGuidelines(reviewGuidelines, carryOver)
 			}
+			ignoredFindings := collectIgnoredFindings(discussions, mentionHandle, ignoredThreads)
+			if len(ignoredFindings) > 0 {
+				reviewGuidelines = appendIgnoredFindingGuidelines(reviewGuidelines, ignoredFindings)
+			}
 			memoryPath := ""
 			var mem reviewMemory
+			memoryUpdated := false
 			if memoryEnabled {
 				memLoaded, path, merr := loadReviewMemory(repoPath, memoryFile)
 				if merr != nil {
@@ -284,6 +291,11 @@ func newMRReviewCmd() *cobra.Command {
 				} else {
 					mem = memLoaded
 					memoryPath = path
+					now := time.Now().UTC()
+					mrRef := fmt.Sprintf("%s!%d", projectID, mrIID)
+					if updateReviewMemoryFromDiscussions(&mem, discussions, mentionHandle, mrRef, now) {
+						memoryUpdated = true
+					}
 					reviewGuidelines = appendReviewMemoryGuidelines(reviewGuidelines, mem, review.Changes, memoryMax)
 				}
 			}
@@ -368,6 +380,16 @@ func newMRReviewCmd() *cobra.Command {
 				if replyCount > 0 {
 					fmt.Printf("Posted %d thread replies.\n", replyCount)
 				}
+				ignoreCount := processIgnoreCommands(
+					cmd.Context(), vcsProvider,
+					projectID,
+					mrIID,
+					discussions,
+					mentionHandle,
+				)
+				if ignoreCount > 0 {
+					fmt.Printf("Acknowledged %d ignore commands.\n", ignoreCount)
+				}
 				noteReplyCount := processNoteReplyCommands(
 					cmd.Context(), vcsProvider,
 					p,
@@ -407,13 +429,11 @@ func newMRReviewCmd() *cobra.Command {
 			parsed.FileComments = append(parsed.FileComments, detectDeterministicFindings(review.Changes)...)
 			parsed.FileComments = filterOutMetaContextFindings(parsed.FileComments)
 			parsed.FileComments = filterLowSignalInlineFindings(parsed.FileComments, validPositionsByFile)
+			parsed.FileComments = filterIgnoredFindings(parsed.FileComments, mem, ignoredFindings)
 			if memoryEnabled && strings.TrimSpace(memoryPath) != "" {
 				now := time.Now().UTC()
 				mrRef := fmt.Sprintf("%s!%d", projectID, mrIID)
-				updated := false
-				if updateReviewMemoryFromDiscussions(&mem, discussions, mrRef, now) {
-					updated = true
-				}
+				updated := memoryUpdated
 				if updateReviewMemoryFromFindings(&mem, parsed.FileComments, mrRef, now) {
 					updated = true
 				}
@@ -422,8 +442,8 @@ func newMRReviewCmd() *cobra.Command {
 					if err := saveReviewMemory(memoryPath, mem); err != nil {
 						fmt.Fprintf(os.Stderr, "Warning: failed to persist review memory: %v\n", err)
 					} else {
-						openCount, fixedCount := reviewMemoryCounts(mem)
-						fmt.Printf("Review memory updated: %s (open=%d fixed=%d)\n", memoryPath, openCount, fixedCount)
+						openCount, fixedCount, ignoredCount := reviewMemoryCounts(mem)
+						fmt.Printf("Review memory updated: %s (open=%d fixed=%d ignored=%d)\n", memoryPath, openCount, fixedCount, ignoredCount)
 					}
 				}
 			}
@@ -457,7 +477,7 @@ func newMRReviewCmd() *cobra.Command {
 
 				existingInline := existingInlineKeys(discussions)
 				existingSeverity := existingInlineSeverityKeys(discussions)
-				reusableThreads := collectReusableThreads(discussions, mentionHandle, pausedThreads)
+				reusableThreads := collectReusableThreads(discussions, mentionHandle, pausedThreads, ignoredThreads)
 				postedInlineKeys := make(map[string]struct{})
 				reusedDiscussionIDs := make(map[string]struct{})
 				rawComments, usedFilterFallback := filterInlineCandidates(
@@ -977,6 +997,7 @@ func collectCarryOverFindings(
 	valid map[string]inlinePositions,
 	mentionHandle string,
 	pausedThreads map[string]bool,
+	ignoredThreads map[string]bool,
 ) []carryOverFinding {
 	markerByDiscussion := make(map[string]struct{}, len(discussions))
 	for _, d := range discussions {
@@ -995,6 +1016,9 @@ func collectCarryOverFindings(
 			continue
 		}
 		if pausedThreads[d.ID] {
+			continue
+		}
+		if ignoredThreads[d.ID] {
 			continue
 		}
 		if _, already := markerByDiscussion[d.ID]; already {
@@ -1033,6 +1057,13 @@ func collectCarryOverFindings(
 		return severityRank(out[i].Severity) > severityRank(out[j].Severity)
 	})
 	return out
+}
+
+type ignoredFinding struct {
+	FilePath string
+	Line     int
+	Message  string
+	RuleID   string
 }
 
 func appendCarryOverGuidelines(guidelines string, carry []carryOverFinding) string {
@@ -1101,6 +1132,36 @@ func postCarryOverReminders(
 	return posted
 }
 
+func processIgnoreCommands(
+	ctx context.Context,
+	vcsProvider vcs.VCSProvider,
+	projectID string,
+	mrIID int64,
+	discussions []vcs.MRDiscussion,
+	mentionHandle string,
+) int {
+	posted := 0
+	for _, d := range discussions {
+		if discussionResolved(d) {
+			continue
+		}
+		reqIdx := latestCommandIndex(d.Notes, mentionHandle, "ignore")
+		if reqIdx < 0 {
+			continue
+		}
+		if hasMarkerAfter(d.Notes, reqIdx, prevIgnoreMarker) {
+			continue
+		}
+		body := "Acknowledged. This finding will be ignored in future reruns until you ask for `prev review` in this thread.\n\n" + prevIgnoreMarker
+		if err := vcsProvider.ReplyToMRDiscussion(ctx, projectID, mrIID, d.ID, body); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to acknowledge ignore command in discussion %s: %v\n", d.ID, err)
+			continue
+		}
+		posted++
+	}
+	return posted
+}
+
 func processReplyCommands(
 	ctx context.Context,
 	vcsProvider vcs.VCSProvider,
@@ -1152,6 +1213,67 @@ func processReplyCommands(
 		posted++
 	}
 	return posted
+}
+
+func collectIgnoredFindings(
+	discussions []vcs.MRDiscussion,
+	mentionHandle string,
+	ignoredThreads map[string]bool,
+) []ignoredFinding {
+	var out []ignoredFinding
+	seen := map[string]struct{}{}
+	for _, d := range discussions {
+		if !ignoredThreads[d.ID] || discussionResolved(d) {
+			continue
+		}
+		path, line := discussionAnchor(d)
+		if strings.TrimSpace(path) == "" || line <= 0 {
+			continue
+		}
+		msg := ""
+		for i := len(d.Notes) - 1; i >= 0; i-- {
+			if _, m, ok := severityAndMessage(d.Notes[i].Body); ok {
+				msg = m
+				break
+			}
+		}
+		if strings.TrimSpace(msg) == "" {
+			continue
+		}
+		item := ignoredFinding{
+			FilePath: strings.TrimSpace(path),
+			Line:     line,
+			Message:  strings.TrimSpace(msg),
+			RuleID:   memoryRuleID(msg),
+		}
+		key := strings.ToLower(item.FilePath) + "|" + item.RuleID + "|" + strconv.Itoa(item.Line)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, item)
+	}
+	return out
+}
+
+func appendIgnoredFindingGuidelines(guidelines string, ignored []ignoredFinding) string {
+	if len(ignored) == 0 {
+		return guidelines
+	}
+	lines := []string{
+		"Ignored reviewer findings from this MR/PR thread state (do not report these again unless explicitly re-requested with `prev review`):",
+	}
+	for i, item := range ignored {
+		if i >= 20 {
+			break
+		}
+		lines = append(lines, fmt.Sprintf("- IGNORED `%s:%d` %s", item.FilePath, item.Line, item.Message))
+	}
+	block := strings.Join(lines, "\n")
+	if strings.TrimSpace(guidelines) == "" {
+		return block
+	}
+	return guidelines + "\n" + block
 }
 
 func buildThreadReplyPrompt(hunk string) string {
@@ -1476,6 +1598,10 @@ func isReplyRequest(body, mentionHandle string) bool {
 	return hasMentionCommand(body, mentionHandle, "reply")
 }
 
+func isIgnoreRequest(body, mentionHandle string) bool {
+	return hasMentionCommand(body, mentionHandle, "ignore")
+}
+
 func isBotAuthor(author, mentionHandle string) bool {
 	author = strings.TrimSpace(strings.ToLower(author))
 	handle := strings.TrimSpace(strings.ToLower(strings.TrimPrefix(mentionHandle, "@")))
@@ -1523,6 +1649,31 @@ func pausedDiscussions(discussions []vcs.MRDiscussion, mentionHandle string) map
 			}
 		}
 		if seen && paused {
+			out[d.ID] = true
+		}
+	}
+	return out
+}
+
+func ignoredDiscussions(discussions []vcs.MRDiscussion, mentionHandle string) map[string]bool {
+	out := make(map[string]bool, len(discussions))
+	if strings.TrimSpace(mentionHandle) == "" {
+		return out
+	}
+	for _, d := range discussions {
+		ignored := false
+		seen := false
+		for _, n := range d.Notes {
+			if isIgnoreRequest(n.Body, mentionHandle) {
+				ignored = true
+				seen = true
+			}
+			if hasMentionCommand(n.Body, mentionHandle, "review") {
+				ignored = false
+				seen = true
+			}
+		}
+		if seen && ignored {
 			out[d.ID] = true
 		}
 	}
@@ -1627,6 +1778,7 @@ func collectReusableThreads(
 	discussions []vcs.MRDiscussion,
 	mentionHandle string,
 	pausedThreads map[string]bool,
+	ignoredThreads map[string]bool,
 ) []reusableThread {
 	var out []reusableThread
 	for _, d := range discussions {
@@ -1634,6 +1786,9 @@ func collectReusableThreads(
 			continue
 		}
 		if pausedThreads[d.ID] {
+			continue
+		}
+		if ignoredThreads[d.ID] {
 			continue
 		}
 		if !isPrevThread(d, mentionHandle) && !threadHasCommand(d, mentionHandle, "review") {

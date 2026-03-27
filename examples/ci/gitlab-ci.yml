@@ -14,7 +14,8 @@ prev_review:
     - go install github.com/sanix-darker/prev@latest
     - prev config validate
     # Thread commands use the plain handle keyword, for example:
-    # "prev reply", "prev summary", "prev pause", "prev resume".
+    # "prev reply", "prev summary", "prev pause", "prev resume",
+    # "prev review", "prev ignore".
     # GitLab processes them on the next pipeline run unless you wire comment-triggered automation.
     - prev mr review "$CI_PROJECT_PATH" "$CI_MERGE_REQUEST_IID" --strictness strict
   variables:

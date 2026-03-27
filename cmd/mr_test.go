@@ -58,6 +58,12 @@ func TestIsReplyRequest_OnlyExplicitReplyCommand(t *testing.T) {
 	assert.False(t, isReplyRequest("someoneelse reply", "prev"))
 }
 
+func TestIsIgnoreRequest_OnlyExplicitIgnoreCommand(t *testing.T) {
+	assert.True(t, isIgnoreRequest("prev ignore", "prev"))
+	assert.True(t, isIgnoreRequest("prev can you ignore this?", "prev"))
+	assert.False(t, isIgnoreRequest("someoneelse ignore", "prev"))
+}
+
 func TestConciseInlineBody(t *testing.T) {
 	body := "[HIGH] This is a long first sentence. Additional details should be trimmed.\n\nSecond paragraph."
 	assert.Equal(t, "[HIGH] This is a long first sentence.", conciseInlineBody(body))
@@ -324,6 +330,27 @@ func TestPausedDiscussions_ScopedPerThread(t *testing.T) {
 	paused := pausedDiscussions(discussions, "prev")
 	assert.True(t, paused["d1"])
 	assert.False(t, paused["d2"])
+}
+
+func TestIgnoredDiscussions_ScopedPerThreadAndReviewOverride(t *testing.T) {
+	discussions := []vcs.MRDiscussion{
+		{
+			ID: "d1",
+			Notes: []vcs.MRDiscussionNote{
+				{Body: "prev ignore"},
+			},
+		},
+		{
+			ID: "d2",
+			Notes: []vcs.MRDiscussionNote{
+				{Body: "prev ignore"},
+				{Body: "prev review"},
+			},
+		},
+	}
+	ignored := ignoredDiscussions(discussions, "prev")
+	assert.True(t, ignored["d1"])
+	assert.False(t, ignored["d2"])
 }
 
 func TestAggregateCommentsByChange_MergesToSingleComment(t *testing.T) {
@@ -694,10 +721,24 @@ func TestCollectReusableThreads_FiltersPausedAndResolved(t *testing.T) {
 		},
 	}
 	paused := map[string]bool{"d2": true}
-	got := collectReusableThreads(discussions, "bot", paused)
+	ignored := map[string]bool{}
+	got := collectReusableThreads(discussions, "bot", paused, ignored)
 	assert.Len(t, got, 1)
 	assert.Equal(t, "d1", got[0].DiscussionID)
 	assert.Equal(t, "HIGH", got[0].Severity)
+}
+
+func TestCollectReusableThreads_FiltersIgnored(t *testing.T) {
+	discussions := []vcs.MRDiscussion{
+		{
+			ID: "d1",
+			Notes: []vcs.MRDiscussionNote{
+				{Author: "bot", Body: "<!-- prev:thread -->\n[HIGH] Nil guard missing", FilePath: "a.go", Line: 10, Resolvable: true},
+			},
+		},
+	}
+	got := collectReusableThreads(discussions, "bot", map[string]bool{}, map[string]bool{"d1": true})
+	assert.Empty(t, got)
 }
 
 func TestMatchReusableThread_SameFileSeverityAndSimilarMessage(t *testing.T) {
