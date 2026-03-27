@@ -13,7 +13,7 @@ var (
 )
 
 // GoVersion returns the version of the go runtime used to compile the binary
-var goVersion = runtime.GOOS
+var goVersion = runtime.Version()
 
 // OsArch returns the os and arch used to build the binary
 var osArch = fmt.Sprintf("%s %s", runtime.GOOS, runtime.GOARCH)

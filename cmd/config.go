@@ -198,7 +198,7 @@ func providerBlock(name string, v *config.Store) map[string]interface{} {
 		v = config.NewStore()
 	}
 	out := map[string]interface{}{
-		"api_key":    strings.TrimSpace(v.GetString("api_key")),
+		"api_key":    redactSecret(v.GetString("api_key")),
 		"model":      strings.TrimSpace(v.GetString("model")),
 		"base_url":   strings.TrimSpace(v.GetString("base_url")),
 		"max_tokens": intOrDefault(v.GetInt("max_tokens"), 1024),
