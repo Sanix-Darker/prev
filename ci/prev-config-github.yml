@@ -14,7 +14,7 @@ retry:
 
 review:
   strictness: normal
-  nitpick: 2
+  nitpick: 6
   passes: 1
   max_comments: 15
   filter_mode: added
