@@ -70,6 +70,10 @@ This document is the source-of-truth for `prev` runtime configuration as impleme
 
 MR thread commands default to `prev` and can be customized with `review.mention_handle` or `PREV_MENTION_HANDLE`.
 
+Use the plain keyword in comment text, for example `prev reply` or `prev summary`. Do not depend on `@prev`, because that may refer to a real user account on the host platform.
+
+GitHub automation in this repository listens to PR updates, issue comments, and inline review-comment replies. GitLab command parsing uses the same `prev` keyword, but reruns still depend on project-specific CI/webhook wiring.
+
 ## Review Continuity
 
 `prev` keeps logical conversation continuity across related AI calls inside one review flow. This applies to:

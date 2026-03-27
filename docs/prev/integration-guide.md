@@ -27,6 +27,30 @@ code-review:
 `prev` currently requires Go `>= 1.24` (see `go.mod`). If your runner uses
 an older Go image, `go install` will fail.
 
+### GitLab Thread Commands
+
+`prev` uses the same plain thread-command syntax on GitLab and GitHub:
+
+- `prev pause`
+- `prev resume`
+- `prev review`
+- `prev summary`
+- `prev reply`
+
+Do not use `@prev`; the command parser now looks for the plain handle keyword in comment text so it does not conflict with real user handles.
+
+Important: GitLab merge request pipelines typically run on MR events, not on discussion comments. That means a `prev reply` or `prev summary` note in GitLab is understood by the CLI, but it will only be processed when your GitLab automation runs `prev mr review` again. If you want immediate reaction to discussion commands, add webhook-triggered or note-triggered pipeline automation in your GitLab setup.
+
+## GitHub Actions Integration
+
+The repository workflow in [.github/workflows/prev-review.yml](/home/dk/github/prev/.github/workflows/prev-review.yml) listens to:
+
+- pull request updates
+- top-level PR comments
+- inline review-comment replies
+
+That allows commands such as `prev reply` and `prev summary` to trigger `prev mr review` automatically without requiring a new push or manual relabel.
+
 ### Required CI/CD Variables
 
 Set these in your GitLab project under **Settings > CI/CD > Variables**:
