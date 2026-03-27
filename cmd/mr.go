@@ -243,7 +243,7 @@ func newMRReviewCmd() *cobra.Command {
 				fmt.Fprintf(os.Stderr, "Warning: failed to fetch MR notes: %v\n", err)
 			}
 			if isMRPaused(notes, mentionHandle) {
-				fmt.Printf("Review paused for MR !%d via @%s pause. Add @%s resume in MR comments to continue.\n",
+				fmt.Printf("Review paused for MR !%d via '%s pause'. Add '%s resume' in MR comments to continue.\n",
 					mrIID, mentionHandle, mentionHandle)
 				return
 			}
@@ -442,7 +442,7 @@ func newMRReviewCmd() *cobra.Command {
 				if inlineOnly {
 					fmt.Println("\nSummary skipped (inline-only mode).")
 				} else {
-					fmt.Println("\nSummary skipped (no explicit @mention summary request).")
+					fmt.Println("\nSummary skipped (no explicit handle summary request).")
 				}
 			}
 
@@ -504,7 +504,7 @@ func newMRReviewCmd() *cobra.Command {
 					alignedSuggestion := rebaseSuggestionIndentation(grp.Suggestion, anchorContent)
 					body := buildInlineCommentBody(grp.Severity, grp.Message, alignedSuggestion, vcsProvider.FormatSuggestionBlock)
 					if fp := buildAgentFixPrompt(grp, fixPromptMode); fp != "" {
-						body += "\n\nAI agent fix prompt:\n```text\n" + fp + "\n```"
+						body += "\n\n" + buildCollapsibleFixPrompt(fp)
 					}
 					body += "\n\n" + prevThreadMarker
 					key := inlineKey(grp.FilePath, grp.NewLine, body)
@@ -1156,7 +1156,7 @@ func processReplyCommands(
 
 func buildThreadReplyPrompt(hunk string) string {
 	return "Hunk context (use this before answering):\n" + hunk + "\n\n" +
-		"Task: Reply to the latest user @mention in this thread. " +
+		"Task: Reply to the latest user command in this thread. " +
 		"Answer the newest question directly, keep continuity with the prior discussion, and address impact/risk first."
 }
 
@@ -1283,7 +1283,7 @@ func buildNoteReplyPrompt(note vcs.MRNote, mr *vcs.MergeRequest) string {
 	}
 	sb.WriteString("\nComment:\n")
 	sb.WriteString(strings.TrimSpace(note.Body))
-	sb.WriteString("\n\nTask: Reply to the latest @mention in this comment.")
+	sb.WriteString("\n\nTask: Reply to the latest handle command in this comment.")
 	return sb.String()
 }
 
@@ -1442,13 +1442,34 @@ func hasNoteMarkerAfter(notes []vcs.MRNote, idx int, marker string) bool {
 }
 
 func hasMentionCommand(body, mentionHandle, command string) bool {
-	body = strings.ToLower(body)
 	handle := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(mentionHandle), "@"))
-	if handle == "" {
+	command = strings.ToLower(strings.TrimSpace(command))
+	if handle == "" || command == "" {
 		return false
 	}
-	pattern := "@" + handle + " " + strings.ToLower(command)
-	return strings.Contains(body, pattern)
+	tokens := tokenizeCommandBody(body)
+	if len(tokens) == 0 {
+		return false
+	}
+	hasHandle := false
+	hasCommand := false
+	for _, token := range tokens {
+		if token == handle {
+			hasHandle = true
+		}
+		if token == command {
+			hasCommand = true
+		}
+		if hasHandle && hasCommand {
+			return true
+		}
+	}
+	return false
+}
+
+func tokenizeCommandBody(body string) []string {
+	re := regexp.MustCompile(`[a-z0-9_-]+`)
+	return re.FindAllString(strings.ToLower(body), -1)
 }
 
 func isReplyRequest(body, mentionHandle string) bool {
@@ -1803,6 +1824,14 @@ func buildInlineCommentBody(
 		body += "\n\nSuggested patch:\n" + formatSuggestion(suggestion)
 	}
 	return body
+}
+
+func buildCollapsibleFixPrompt(prompt string) string {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return ""
+	}
+	return "<details>\n<summary>AI agent fix prompt</summary>\n\n```text\n" + prompt + "\n```\n</details>"
 }
 
 func normalizeSuggestion(s string) string {

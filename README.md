@@ -23,7 +23,7 @@ Supports multiple AI providers: **OpenAI**, **Anthropic (Claude)**, **Azure Open
 | Thread continuity (reuse threads across pushes) | Yes | Partial | Yes | No | No |
 | Duplicate-thread suppression on subsequent pushes | Yes | Partial | Partial | No | Rare |
 | Resolved-thread awareness (ignore resolved discussions) | Yes | Partial | Partial | No | Rare |
-| Fixed thread commands via MR comments (`@prev ...`) | Yes | No | No | No | No |
+| Fixed thread commands via MR comments (`prev ...`) | Yes | No | No | No | No |
 | Auto-discover repo guidelines (CLAUDE.md, AGENTS.md, copilot-instructions) | Yes | No | Partial | No | No |
 | Strictness levels (strict/normal/lenient) | Yes | Partial | Yes | No | Rare |
 | AI fix prompt blocks in inline comments | Yes | Yes | Yes | No | No |
@@ -360,18 +360,25 @@ prev memory reset --yes
 
 #### MR Thread Commands
 
-MR comments can control bot behavior using the configured mention handle. By default this is `@prev`; override it with `review.mention_handle` in config or `PREV_MENTION_HANDLE`.
+MR comments can control bot behavior using the configured mention handle. By default this is `prev`; override it with `review.mention_handle` in config or `PREV_MENTION_HANDLE`.
 
-- `@prev pause`: pause reviews for the MR/thread
-- `@prev resume`: resume paused MR/thread reviews
-- `@prev review`: force review processing for that thread
-- `@prev summary`: post one top-level summary note (idempotent)
-- `@prev reply`: bot posts a thread reply
+Use the plain keyword in sentence text. Do not rely on `@prev`, because `prev` may be an actual user handle on the hosting platform.
+
+- `prev pause`: pause reviews for the MR/thread
+- `prev resume`: resume paused MR/thread reviews
+- `prev review`: force review processing for that thread
+- `prev summary`: post one top-level summary note (idempotent)
+- `prev reply`: bot posts a thread reply
 
 Inline continuity behavior:
 
 - Finds multiple issues in one changed hunk and posts them as key points in a single inline comment.
 - Reuses matching unresolved discussions on later pushes (reply in-thread) instead of opening duplicate new threads.
+
+Platform trigger behavior:
+
+- GitHub: the bundled `prev-review` workflow listens to pull request updates, top-level PR comments, and inline review-comment replies, so `prev reply` and `prev summary` can trigger a new review run directly.
+- GitLab: the CLI understands the same plain `prev` commands, but comment-event reruns depend on your GitLab automation. Standard MR pipelines usually run on merge request events, so discussion commands are processed on the next pipeline run unless you add webhook-triggered or note-triggered automation.
 
 ### Repository Guidelines Mapping
 
