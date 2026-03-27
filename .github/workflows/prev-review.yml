@@ -3,19 +3,39 @@ name: prev-review
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled]
+  issue_comment:
+    types: [created, edited]
+  pull_request_review_comment:
+    types: [created, edited]
 
 permissions:
   contents: read
   pull-requests: write
 
 concurrency:
-  group: prev-review-${{ github.event.pull_request.number }}
+  group: prev-review-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   review:
-    if: github.event.pull_request.draft == false && contains(github.event.pull_request.labels.*.name, 'review')
+    if: |
+      (
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.draft == false &&
+        contains(github.event.pull_request.labels.*.name, 'review')
+      ) ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.issue.labels.*.name, 'review')
+      ) ||
+      (
+        github.event_name == 'pull_request_review_comment' &&
+        contains(github.event.pull_request.labels.*.name, 'review')
+      )
     runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -44,7 +64,7 @@ jobs:
             echo "OPENAI_API_KEY is not configured. Skipping prev review."
             exit 0
           fi
-          go run . mr review "${{ github.repository }}" "${{ github.event.pull_request.number }}" \
+          go run . mr review "${{ github.repository }}" "${PR_NUMBER}" \
             --vcs github \
             --strictness normal \
             --max-comments 15
