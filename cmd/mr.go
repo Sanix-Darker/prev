@@ -1191,14 +1191,15 @@ func processReplyCommands(
 		if reqIdx < 0 {
 			continue
 		}
+		detailed := wantsDetailedReply(d.Notes[reqIdx].Body, mentionHandle)
 		if hasMarkerAfter(d.Notes, reqIdx, prevReplyMarker) {
 			continue
 		}
 		path, line := discussionAnchor(d)
 		hunk := extractHunkContext(changes, path, line)
-		prompt := buildThreadReplyPrompt(hunk)
+		prompt := buildThreadReplyPrompt(hunk, detailed)
 		conv := provider.NewConversation(ai, provider.ConversationOptions{
-			SystemPrompt: "You are an expert code reviewer replying in a merge request discussion. Preserve thread continuity, answer the latest request directly, and tie your reply to the available hunk context.",
+			SystemPrompt: "You are an expert code reviewer replying in a merge request discussion. Be accurate, sharp, and direct. Keep the default reply concise, with no fluff and no emojis. Expand only when the latest request explicitly asks for more detail. Preserve thread continuity and tie your reply to the available hunk context.",
 			Messages:     buildDiscussionConversationMessages(d, mentionHandle),
 		})
 		content, err := completeConversationPrompt(ctx, conv, prompt)
@@ -1208,7 +1209,7 @@ func processReplyCommands(
 			}
 			continue
 		}
-		body := strings.TrimSpace(content) + "\n\n" + prevReplyMarker
+		body := sanitizeReviewReply(content) + "\n\n" + prevReplyMarker
 		if err := vcsProvider.ReplyToMRDiscussion(ctx, projectID, mrIID, d.ID, body); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to post reply in discussion %s: %v\n", d.ID, err)
 			continue
@@ -1281,10 +1282,14 @@ func appendIgnoredFindingGuidelines(guidelines string, ignored []ignoredFinding)
 	return guidelines + "\n" + block
 }
 
-func buildThreadReplyPrompt(hunk string) string {
+func buildThreadReplyPrompt(hunk string, detailed bool) string {
+	style := "Keep it short: 2-4 sentences max, no bullets unless needed, no fluff, no emojis."
+	if detailed {
+		style = "The reviewer explicitly asked for more detail. Expand with concrete reasoning, likely failure mode, impact, and key evidence from the hunk. Stay precise. No fluff. No emojis."
+	}
 	return "Hunk context (use this before answering):\n" + hunk + "\n\n" +
 		"Task: Reply to the latest user command in this thread. " +
-		"Answer the newest question directly, keep continuity with the prior discussion, and address impact/risk first."
+		"Answer the newest question directly, keep continuity with the prior discussion, and address impact/risk first. " + style
 }
 
 func buildDiscussionConversationMessages(d vcs.MRDiscussion, mentionHandle string) []provider.Message {
@@ -1360,6 +1365,7 @@ func processNoteReplyCommands(
 		if !isReplyRequest(note.Body, mentionHandle) {
 			continue
 		}
+		detailed := wantsDetailedReply(note.Body, mentionHandle)
 		if hasNoteMarkerAfter(notes, i, prevReplyMarker) {
 			continue
 		}
@@ -1367,9 +1373,9 @@ func processNoteReplyCommands(
 			fmt.Fprintf(os.Stderr, "Warning: no inline anchor available to reply to top-level note %d\n", note.ID)
 			continue
 		}
-		prompt := buildNoteReplyPrompt(note, mr)
+		prompt := buildNoteReplyPrompt(note, mr, detailed)
 		conv := provider.NewConversation(ai, provider.ConversationOptions{
-			SystemPrompt: "You are an expert code reviewer replying to a merge request comment. Answer directly, stay scoped to the MR context, and avoid repeating boilerplate.",
+			SystemPrompt: "You are an expert code reviewer replying to a merge request comment. Be accurate, sharp, and direct. Keep the default reply concise, with no fluff and no emojis. Expand only when the latest request explicitly asks for more detail. Stay scoped to the MR context and avoid boilerplate.",
 		})
 		content, err := completeConversationPrompt(ctx, conv, prompt)
 		if err != nil || strings.TrimSpace(content) == "" {
@@ -1378,7 +1384,7 @@ func processNoteReplyCommands(
 			}
 			continue
 		}
-		body := strings.TrimSpace(content) + "\n\n" + prevReplyMarker
+		body := sanitizeReviewReply(content) + "\n\n" + prevReplyMarker
 		if mr == nil || mr.DiffRefs.HeadSHA == "" || mr.DiffRefs.BaseSHA == "" {
 			fmt.Fprintf(os.Stderr, "Warning: missing diff refs; cannot post inline reply for note %d\n", note.ID)
 			continue
@@ -1398,7 +1404,7 @@ func processNoteReplyCommands(
 	return posted
 }
 
-func buildNoteReplyPrompt(note vcs.MRNote, mr *vcs.MergeRequest) string {
+func buildNoteReplyPrompt(note vcs.MRNote, mr *vcs.MergeRequest, detailed bool) string {
 	var sb strings.Builder
 	if mr != nil {
 		sb.WriteString(fmt.Sprintf("Merge request: %s\n", strings.TrimSpace(mr.Title)))
@@ -1411,6 +1417,11 @@ func buildNoteReplyPrompt(note vcs.MRNote, mr *vcs.MergeRequest) string {
 	sb.WriteString("\nComment:\n")
 	sb.WriteString(strings.TrimSpace(note.Body))
 	sb.WriteString("\n\nTask: Reply to the latest handle command in this comment.")
+	if detailed {
+		sb.WriteString(" The reviewer explicitly asked for more detail. Expand with concrete reasoning, likely failure mode, impact, and supporting evidence.")
+	} else {
+		sb.WriteString(" Keep it short: 2-4 sentences max, no bullets unless needed, no fluff, no emojis.")
+	}
 	return sb.String()
 }
 
@@ -1945,7 +1956,8 @@ func conciseInlineBody(body string) string {
 		}
 	}
 	candidate = strings.TrimSpace(candidate)
-	const maxLen = 220
+	candidate = strings.Join(strings.Fields(stripEmojiRunes(candidate)), " ")
+	const maxLen = 158
 	if len(candidate) > maxLen {
 		candidate = strings.TrimSpace(candidate[:maxLen-1]) + "…"
 	}
@@ -1993,6 +2005,76 @@ func buildCollapsibleFixPrompt(prompt string) string {
 		return ""
 	}
 	return "<details>\n<summary>AI agent fix prompt</summary>\n\n```text\n" + prompt + "\n```\n</details>"
+}
+
+func wantsDetailedReply(body, mentionHandle string) bool {
+	if !isReplyRequest(body, mentionHandle) {
+		return false
+	}
+	text := strings.ToLower(strings.Join(strings.Fields(sanitizeConversationBody(body)), " "))
+	for _, marker := range []string{
+		"more detail",
+		"more details",
+		"more context",
+		"more depth",
+		"develop",
+		"elaborate",
+		"expand",
+		"deeper",
+		"in depth",
+		"step by step",
+		"please detail",
+		"please explain in detail",
+		"can you detail",
+	} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func sanitizeReviewReply(body string) string {
+	body = strings.TrimSpace(stripEmojiRunes(body))
+	if body == "" {
+		return body
+	}
+	lines := strings.Split(body, "\n")
+	out := make([]string, 0, len(lines))
+	blank := false
+	for _, line := range lines {
+		line = strings.TrimRight(line, " \t")
+		if strings.TrimSpace(line) == "" {
+			if blank {
+				continue
+			}
+			blank = true
+			out = append(out, "")
+			continue
+		}
+		blank = false
+		out = append(out, line)
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+func stripEmojiRunes(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 0x1F300 && r <= 0x1FAFF:
+			continue
+		case r >= 0x2600 && r <= 0x27BF:
+			continue
+		case r >= 0xFE00 && r <= 0xFE0F:
+			continue
+		case r >= 0x1F1E6 && r <= 0x1F1FF:
+			continue
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func normalizeSuggestion(s string) string {

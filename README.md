@@ -391,6 +391,9 @@ Inline continuity behavior:
 
 - Finds multiple issues in one changed hunk and posts them as key points in a single inline comment.
 - Reuses matching unresolved discussions on later pushes (reply in-thread) instead of opening duplicate new threads.
+- Keeps default inline comments short, direct, and low-fluff.
+- Keeps default `prev reply` responses concise; expands only when the reviewer explicitly asks for more detail.
+- Strips emojis from bot review comments and replies.
 
 Platform trigger behavior:
 

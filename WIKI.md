@@ -76,6 +76,8 @@ GitHub automation in this repository listens to PR updates, issue comments, and 
 
 Supported thread commands include `prev reply`, `prev summary`, `prev pause`, `prev resume`, `prev review`, and `prev ignore`. `prev review` clears a prior thread-level ignore state immediately.
 
+Default bot tone for inline comments and replies is short, direct, and low-fluff. More detailed explanations are reserved for explicit `prev reply` requests asking to expand, elaborate, or explain in detail. Bot review comments and replies avoid emojis.
+
 ## Review Continuity
 
 `prev` keeps logical conversation continuity across related AI calls inside one review flow. This applies to:

@@ -22,6 +22,9 @@
 - **Hunk-level consolidation**: Merges multiple findings in the same changed hunk into one inline thread with key points
 - **Thread continuity**: Reuses matching unresolved discussions across pushes instead of opening duplicate threads
 - **Reply continuity**: Thread replies and top-level MR replies reuse prior discussion history before answering the newest request
+- **Concise review communication**: Default inline comments and replies stay short, direct, and low-fluff
+- **Detail on demand**: `prev reply` expands only when the reviewer explicitly asks for more depth
+- **No-emoji review output**: Bot inline comments and replies strip emoji characters
 - **Summary notes**: Posts an overall review summary as a merge request note
 - **Severity filtering**: Filters inline comments based on strictness level (strict/normal/lenient)
 - **Dry-run mode**: Preview reviews locally before posting

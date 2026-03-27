@@ -69,6 +69,13 @@ func TestConciseInlineBody(t *testing.T) {
 	assert.Equal(t, "[HIGH] This is a long first sentence.", conciseInlineBody(body))
 }
 
+func TestConciseInlineBody_StripsEmojiAndCapsLength(t *testing.T) {
+	body := "[HIGH] This is a very long finding with noise 🙂 that should stay short, precise, and free of emoji while keeping the main point visible for reviewers in the thread."
+	got := conciseInlineBody(body)
+	assert.NotContains(t, got, "🙂")
+	assert.LessOrEqual(t, len(got), 160)
+}
+
 func TestConciseInlineBody_PreservesKeyPointsList(t *testing.T) {
 	body := "[HIGH] Key points:\n- First issue with details.\n- Second issue with details."
 	got := conciseInlineBody(body)
@@ -525,6 +532,41 @@ func TestBuildCollapsibleFixPrompt_RendersDetailsBlock(t *testing.T) {
 	assert.Contains(t, body, "<summary>AI agent fix prompt</summary>")
 	assert.Contains(t, body, "```text\nline one\nline two\n```")
 	assert.Contains(t, body, "</details>")
+}
+
+func TestWantsDetailedReply_OnlyOnExplicitExpansionRequest(t *testing.T) {
+	assert.False(t, wantsDetailedReply("prev reply can this break the build?", "prev"))
+	assert.True(t, wantsDetailedReply("prev reply please explain in detail why this can break the build", "prev"))
+	assert.True(t, wantsDetailedReply("prev reply can you expand on the failure mode?", "prev"))
+}
+
+func TestSanitizeReviewReply_StripsEmojiAndCollapsesBlankLines(t *testing.T) {
+	got := sanitizeReviewReply("Looks risky 🙂\n\n\nPlease guard the nil path.\n")
+	assert.Equal(t, "Looks risky\n\nPlease guard the nil path.", got)
+}
+
+func TestBuildThreadReplyPrompt_DefaultIsConcise(t *testing.T) {
+	got := buildThreadReplyPrompt("func main() {}", false)
+	assert.Contains(t, got, "Keep it short")
+	assert.NotContains(t, got, "explicitly asked for more detail")
+}
+
+func TestBuildThreadReplyPrompt_DetailedModeExpands(t *testing.T) {
+	got := buildThreadReplyPrompt("func main() {}", true)
+	assert.Contains(t, got, "explicitly asked for more detail")
+	assert.Contains(t, got, "likely failure mode")
+}
+
+func TestBuildNoteReplyPrompt_DefaultIsConcise(t *testing.T) {
+	got := buildNoteReplyPrompt(vcs.MRNote{Body: "prev reply can this break?"}, &vcs.MergeRequest{Title: "MR"}, false)
+	assert.Contains(t, got, "Keep it short")
+	assert.NotContains(t, got, "supporting evidence")
+}
+
+func TestBuildNoteReplyPrompt_DetailedModeExpands(t *testing.T) {
+	got := buildNoteReplyPrompt(vcs.MRNote{Body: "prev reply please explain in detail"}, &vcs.MergeRequest{Title: "MR"}, true)
+	assert.Contains(t, got, "supporting evidence")
+	assert.Contains(t, got, "more detail")
 }
 
 func TestRebaseSuggestionIndentation_RebasesToAnchor(t *testing.T) {
