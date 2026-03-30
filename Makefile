@@ -1,8 +1,10 @@
 BIN_NAME=prev
 IMAGE_NAME=sanix-darker/${BIN_NAME}
-BIN_PATH=${GOPATH}/bin
+BUILD_DIR?=./bin
+BIN_PATH?=${BUILD_DIR}/${BIN_NAME}
+PREFIX?=/usr/local
+INSTALL_BIN_DIR?=${PREFIX}/bin
 GO_VERSION=1.24
-REVIEWER_BIN_PATH?=../prev-test-reviewer/bin/local
 LINUX_GOOS?=linux
 LINUX_GOARCH?=amd64
 
@@ -30,28 +32,40 @@ test-e2e:
 ## Build locally the go project.
 build:
 	@echo "building ${BIN_NAME}"
-	@echo "GOPATH=${GOPATH}"
+	@echo "output=${BIN_PATH}"
+	@mkdir -p $(dir ${BIN_PATH})
 	go generate ./...
-	go build -o ${BIN_PATH}/${BIN_NAME}
+	go build -o ${BIN_PATH}
 	# TODO: go optimizations with flags are failing in the CI,
 	# will check later
 	# GO111MODULE=on \
 	# CGO_ENABLED=0 \
-	# go build -a -installsuffix cgo -o ${BIN_PATH}/${BIN_NAME}
+	# go build -a -installsuffix cgo -o ${BIN_PATH}
 
-## Build Linux x86_64 binary for prev-test-reviewer at ../prev-test-reviewer/bin/local.
-build-linux-reviewer:
+## Build Linux binary for prev.
+build-linux:
 	@echo "building ${BIN_NAME} for ${LINUX_GOOS}/${LINUX_GOARCH}"
-	@echo "output=${REVIEWER_BIN_PATH}"
-	@mkdir -p $(dir ${REVIEWER_BIN_PATH})
-	GOOS=${LINUX_GOOS} GOARCH=${LINUX_GOARCH} CGO_ENABLED=0 go build -o ${REVIEWER_BIN_PATH}
+	@echo "output=${BIN_PATH}"
+	@mkdir -p $(dir ${BIN_PATH})
+	GOOS=${LINUX_GOOS} GOARCH=${LINUX_GOARCH} CGO_ENABLED=0 go build -o ${BIN_PATH}
 
-## Build portable Linux x86_64 binary for prev-test-reviewer at ../prev-test-reviewer/bin/local.
+## Build portable Linux x86_64 binary for prev.
 build-linux-portable:
 	@echo "building portable ${BIN_NAME} for linux/amd64"
-	@echo "output=../prev-test-reviewer/bin/local"
-	@mkdir -p ../prev-test-reviewer/bin
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../prev-test-reviewer/bin/local
+	@echo "output=${BIN_PATH}"
+	@mkdir -p $(dir ${BIN_PATH})
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ${BIN_PATH}
+
+## Install prev into the system bin directory.
+install: build
+	@echo "installing ${BIN_NAME} to ${INSTALL_BIN_DIR}"
+	install -d ${INSTALL_BIN_DIR}
+	install -m 0755 ${BIN_PATH} ${INSTALL_BIN_DIR}/${BIN_NAME}
+
+## Remove prev from the system bin directory.
+uninstall:
+	@echo "removing ${INSTALL_BIN_DIR}/${BIN_NAME}"
+	rm -f ${INSTALL_BIN_DIR}/${BIN_NAME}
 
 ## Compile optimized for alpine linux.
 docker-build:
