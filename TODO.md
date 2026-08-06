@@ -50,17 +50,18 @@
     - [x] ChatGPT AI (you can specify the model version) of course (as default it's 3.5)
     - [ ] Bing AI (from Microsoft) (https://www.bing.com/new) (https://learn.microsoft.com/en-GB/azure/ai-services/openai/overview)
     - [ ] Perplexity AI (https://www.perplexity.ai/) (https://github.com/nathanrchn/perplexityai/blob/main/Perplexity.py)
-    - [ ] Google Bard AI (http://bard.google.com/) (waiting list)
+    - [x] Google Bard AI (http://bard.google.com/) (waiting list)
     - [ ] Jasper Chat AI (https://jasper.ai/?utm_source=partner&fpr=devinder85) (no go ??)
-    - [ ] Claude AI (https://claude.ai/chats) (https://docs.anthropic.com/claude/reference/client-sdks)
-    - [ ] Llama 2 AI (https://huggingface.co/spaces/ysharma/Explore_llamav2_with_TGI)
+    - [x] Claude AI (https://claude.ai/chats) (https://docs.anthropic.com/claude/reference/client-sdks)
+    - [x] Llama 2 AI (https://huggingface.co/spaces/ysharma/Explore_llamav2_with_TGI)
     - [ ] HuggingChat AI (https://huggingface.co/chat/)
     - [ ] NeevAI (https://neeva.com/plans)
     - [ ] YouChat (https://you.com/)
     - [ ] Elicit (https://elicit.org/)
-    - [ ] Learnt (https://learnt.ai/)
+    - [x] Learnt (https://learnt.ai/)
+    - [ ] StarCoder (https://huggingface.co/blog/starcoder)
     - [ ] Pi, your personnal AI (https://heypi.com/talk)
-    - [ ] Quora Poe AI (https://poe.com/chatgpt)
+    - [x] Quora Poe AI (https://poe.com/chatgpt)
     - [ ] PREVV.ai Self Hosted  (yes, prev will have one(barely as fast as the others but should be able to respond some interesting stuffs)) + those configurations needed PRE_API_KEY to be set and stored
         - https://github.com/LinkSoul-AI/Chinese-Llama-2-7b
         - https://github.com/soulteary/docker-llama2-chat
